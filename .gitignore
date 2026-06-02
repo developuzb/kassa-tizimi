@@ -1,0 +1,19 @@
+# Service account maxfiy kalitlari — HECH QACHON commit qilinmasin!
+sheets-admin/service-account.json
+sheets-admin/*.key.json
+**/service-account*.json
+sheets-admin/config.json
+.env
+.env.local
+
+# Node / tooling
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# OS / muhit
+.DS_Store
+Thumbs.db
+.idea/

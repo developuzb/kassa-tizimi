@@ -1,0 +1,25 @@
+{
+  "name": "kassa-pwa",
+  "version": "1.0.0",
+  "description": "Offline-first kassa (POS) PWA — localStorage + Google Sheets sinxron",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve .",
+    "test": "node --test",
+    "lint": "eslint js",
+    "lint:fix": "eslint js --fix",
+    "format": "prettier --write \"**/*.{js,css,html,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,css,html,json,md}\""
+  },
+  "keywords": ["pos", "kassa", "pwa", "offline", "uzbek"],
+  "author": "Suxrob",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3",
+    "serve": "^14.2.3"
+  }
+}

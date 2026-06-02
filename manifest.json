@@ -1,0 +1,20 @@
+{
+  "name": "Kassa Tizimi",
+  "short_name": "Kassa",
+  "description": "Offline ishlaydigan, Google Sheets bilan integratsiyalashgan kassa (POS) tizimi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef1f9",
+  "theme_color": "#007aff",
+  "lang": "uz",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
