@@ -5,13 +5,14 @@
    (ular har doim tarmoqqa boradi, offline bo'lsa navbatga tushadi).
    ============================================================ */
 
-const CACHE = 'kassa-v2';
+const CACHE = 'kassa-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon.svg',
   './css/style.css',
+  './js/utils.js',
   './js/storage.js',
   './js/sheets.js',
   './js/kassa.js',
@@ -21,6 +22,8 @@ const ASSETS = [
   './js/hisobotlar.js',
   './js/admin.js',
   './js/app.js',
+  './js/firebase-config.js',
+  './js/firebase-sync.js',
   './js/vendor/chart.umd.min.js',
 ];
 

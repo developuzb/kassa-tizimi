@@ -81,6 +81,13 @@ const App = (() => {
     else { el.className = 'net-status offline'; el.title = 'Oflayn — ma\'lumot lokal saqlanmoqda'; }
   }
 
+  // Joriy ochiq ko'rinishni qayta chizadi (Firebase'dan yangi ma'lumot kelganda).
+  function refresh() {
+    const active = document.querySelector('.view.active');
+    if (active) views[active.id.replace('view-', '')]?.render();
+    refreshHeader();
+  }
+
   // Eski (ochiq matnli) parol/PINlarni bir marta hashga ko'chiradi
   async function migrateSecurity() {
     const s = Storage.getSettings();
@@ -126,6 +133,9 @@ const App = (() => {
     refreshHeader();
     go('kassa');
 
+    // Multi-device real-time sinxron (Firebase) — seed/migrate tugagach ulanamiz
+    if (window.FBSync) window.FBSync.start();
+
     // Ishga tushganda sinxronlanmagan o'zgarish bo'lsa, fon rejimida yuboramiz
     if (navigator.onLine && Storage.isDirty()) {
       Sheets.syncIfNeeded().then(r => {
@@ -134,7 +144,7 @@ const App = (() => {
     }
   }
 
-  return { go, init, refreshHeader, updateNet };
+  return { go, init, refreshHeader, updateNet, refresh };
 })();
 
 // Ilovani ishga tushirish

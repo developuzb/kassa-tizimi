@@ -13,7 +13,14 @@ const Admin = (() => {
   function render() {
     const root = document.getElementById('view-admin');
     if (!unlocked) { renderLock(root); return; }
+    // Qayta qurishdan oldin qaysi jildlar ochiq ekanini eslab qolamiz
+    const opened = [...root.querySelectorAll('.adm-folder[open]')].map(d => d.dataset.fld);
     renderPanel(root);
+    // ...va qayta tiklaymiz (amal bajarilganda jild yopilib qolmasin)
+    opened.forEach(id => {
+      const d = root.querySelector(`.adm-folder[data-fld="${id}"]`);
+      if (d) d.open = true;
+    });
   }
 
   /* ---------- Parol ekrani ---------- */
@@ -175,10 +182,12 @@ const Admin = (() => {
     `;
   }
 
-  /* Yig'iladigan "jild" (collapsible) HTML'ini quradi */
+  /* Yig'iladigan "jild" (collapsible) HTML'ini quradi.
+     id — render() qayta qurganda ochiq holatni tiklash uchun barqaror kalit */
   function folder(icon, title, sub, body) {
+    const id = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     return `
-      <details class="adm-folder">
+      <details class="adm-folder" data-fld="${id}">
         <summary>
           <span class="fld-ico">${icon}</span>
           <span class="fld-txt">${esc(title)}<span class="fld-sub">${esc(sub)}</span></span>

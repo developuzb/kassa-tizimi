@@ -20,6 +20,10 @@ const Storage = (() => {
     counter:     PREFIX + 'receiptNo',    // chek raqami hisoblagichi
   };
 
+  // Firestore'dan kelgan ma'lumotni yozayotganda true bo'ladi
+  // (qayta Firebase'ga push qilinmasin — loop oldini olish).
+  let _applyingCloud = false;
+
   /* --- past darajadagi o'qish/yozish (xatolikka chidamli) --- */
   function read(key, fallback) {
     try {
@@ -33,6 +37,11 @@ const Storage = (() => {
   function write(key, value) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
+      // Firebase'ga ko'zgu: bu o'zgarish lokal bo'lsa (cloud'dan kelmagan) push qilamiz
+      if (!_applyingCloud && typeof window !== 'undefined' && window.FBSync) {
+        try { window.FBSync.onLocalWrite(key, value); }
+        catch (err) { console.warn('FBSync push xatosi:', err); }
+      }
       return true;
     } catch (e) {
       console.error('Storage yozish xatosi (xotira to\'lgan bo\'lishi mumkin):', e);
@@ -68,6 +77,7 @@ const Storage = (() => {
   function getSales()   { return read(K.sales, []); }
   function addSale(sale) {
     const list = getSales();
+    sale.id = sale.id || uid();   // qurilmalararo barqaror hujjat id'si
     list.push(sale);
     write(K.sales, list);
   }
@@ -171,6 +181,15 @@ const Storage = (() => {
   function markDirty()    { write(K.dirty, true); }
   function clearDirty()   { write(K.dirty, false); }
 
+  /* ============ FIREBASE'DAN KELGAN MA'LUMOTNI QO'LLASH ============ */
+  // Firestore onSnapshot orqali kelgan ma'lumotni lokalga yozadi, lekin
+  // qayta Firebase'ga push QILMAYDI (cheksiz loop oldini olish).
+  function applyCloud(key, value) {
+    _applyingCloud = true;
+    try { write(key, value); }
+    finally { _applyingCloud = false; }
+  }
+
   /* ============ SMENALAR ============ */
   function getActiveShift()    { return read(K.activeShift, null); }
   function setActiveShift(s)   { write(K.activeShift, s); }
@@ -178,6 +197,7 @@ const Storage = (() => {
   function getShifts()         { return read(K.shifts, []); }
   function addShift(s) {
     const list = getShifts();
+    s.id = s.id || uid();
     list.push(s);
     write(K.shifts, list);
   }
@@ -276,7 +296,7 @@ const Storage = (() => {
   }
 
   return {
-    K, uid, seedIfEmpty,
+    K, uid, seedIfEmpty, applyCloud,
     // xizmatlar
     getServices, setServices, addService, updateService, deleteService,
     // sotuvlar
