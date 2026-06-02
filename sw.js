@@ -5,7 +5,7 @@
    (ular har doim tarmoqqa boradi, offline bo'lsa navbatga tushadi).
    ============================================================ */
 
-const CACHE = 'kassa-v3';
+const CACHE = 'kassa-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -40,25 +40,24 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// So'rovlar — faqat shu domendagi GET'larni keshdan beramiz (cache-first).
-// Tashqi so'rovlar (Google Sheets / Apps Script) to'g'ridan-to'g'ri tarmoqqa ketadi.
+// So'rovlar — shu domendagi GET'lar uchun "network-first":
+// online bo'lsa HAR DOIM eng yangi kodni tarmoqdan olamiz (va keshni yangilaymiz),
+// offline bo'lsa keshdan beramiz. Shu sabab kod yangilanishi barcha qurilmaga
+// darrov yetadi (eski kesh muammosi yo'q).
+// Tashqi so'rovlar (Firebase SDK, Realtime Database, Sheets) aralashmaymiz.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // tashqi — aralashmaymiz
+  if (url.origin !== self.location.origin) return; // tashqi — to'g'ridan-to'g'ri tarmoqqa
 
   e.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(res => {
-        // muvaffaqiyatli javobni keshga qo'shamiz (keyingi marta offline ishlasin)
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => caches.match('./index.html')); // offline fallback
-    })
+    fetch(req).then(res => {
+      if (res && res.status === 200) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy));
+      }
+      return res;
+    }).catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
   );
 });
