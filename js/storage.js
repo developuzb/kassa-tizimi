@@ -193,7 +193,9 @@ const Storage = (() => {
   /* ============ SMENALAR ============ */
   function getActiveShift()    { return read(K.activeShift, null); }
   function setActiveShift(s)   { write(K.activeShift, s); }
-  function clearActiveShift()  { localStorage.removeItem(K.activeShift); }
+  // null yozamiz (removeItem emas) — shunda smena yopilishi Firebase orqali
+  // boshqa qurilmalarga ham yetadi.
+  function clearActiveShift()  { write(K.activeShift, null); }
   function getShifts()         { return read(K.shifts, []); }
   function addShift(s) {
     const list = getShifts();
