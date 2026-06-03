@@ -111,7 +111,7 @@ const Kassa = (() => {
     }
     grid.innerHTML = services.map(s => {
       const tugagan = s.qoldiq != null && s.qoldiq <= 0;
-      const narxLabel = s.ochiqNarx ? 'Narx so\'raladi' : money(s.narx);
+      const narxLabel = s.isPaynet ? '💸 Tan + xizmat narxi' : s.ochiqNarx ? 'Narx so\'raladi' : money(s.narx);
       return `
       <div class="service-card ${tugagan ? 'disabled' : ''} ${s.pin ? 'pinned' : ''}" ${tugagan ? '' : `onclick="Kassa.add('${s.id}')"`}>
         <button class="pin-btn ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Kassa.togglePin(event,'${s.id}')">📌</button>
@@ -126,6 +126,8 @@ const Kassa = (() => {
   function add(id) {
     const s = Storage.getServices().find(x => x.id === id);
     if (!s) return;
+    // Paynet / to'lov xizmati — tan narx va xizmat narxi so'raymiz
+    if (s.isPaynet) { askPaynet(s); return; }
     // Narxi belgilanmagan xizmat — avval narx so'raymiz (PriceInputModal)
     if (s.ochiqNarx) { askPrice(s); return; }
     const item = cart.find(c => c.id === id);
@@ -185,6 +187,53 @@ const Kassa = (() => {
       if (!narx || narx <= 0) { Toast.show('Narx kiriting', 'error'); return; }
       // ochiq narxli yozuv — har safar alohida qator bo'lsin (id noyob)
       cart.push({ id: s.id + '~' + Date.now().toString(36), nom: s.nom, narx, emoji: s.emoji, miqdor: 1 });
+      Modal.close();
+      renderCart();
+      Toast.show('Savatga qo\'shildi ✓', 'success');
+    };
+  }
+
+  /* ---------- Paynet / to'lov xizmati modali — tan narx va xizmat narxi ---------- */
+  function askPaynet(s) {
+    const cur = esc(Storage.getSettings().valyuta);
+    Modal.open(`
+      <h3>${esc(s.emoji) || '💸'} ${esc(s.nom)}</h3>
+      <div class="field"><label>Tan narx (${cur})</label>
+        <input class="input" id="pn-tan" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+      <div class="field"><label>Xizmat narxi — mijoz to'lovi (${cur})</label>
+        <input class="input" id="pn-xizmat" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+      <div class="profit-box" id="pn-info" style="margin-bottom:14px">Komissiya: —</div>
+      <button class="btn btn-primary" id="pn-go">Savatga qo'shish</button>
+    `);
+    const tanEl    = document.getElementById('pn-tan');
+    const xizmatEl = document.getElementById('pn-xizmat');
+    const infoEl   = document.getElementById('pn-info');
+
+    function updateInfo() {
+      const tan    = Number(tanEl.value)    || 0;
+      const xizmat = Number(xizmatEl.value) || 0;
+      const kom    = xizmat - tan;
+      infoEl.textContent = `Komissiya (foyda): ${money(kom)}`;
+      infoEl.style.color = kom < 0 ? 'var(--danger, #e53e3e)' : '';
+    }
+    tanEl.oninput    = updateInfo;
+    xizmatEl.oninput = updateInfo;
+    tanEl.focus();
+
+    document.getElementById('pn-go').onclick = () => {
+      const tan    = Number(tanEl.value);
+      const xizmat = Number(xizmatEl.value);
+      if (!tan || tan <= 0)    { Toast.show('Tan narxni kiriting', 'error'); return; }
+      if (!xizmat || xizmat <= 0) { Toast.show('Xizmat narxini kiriting', 'error'); return; }
+      cart.push({
+        id: s.id + '~' + Date.now().toString(36),
+        nom: s.nom,
+        narx: xizmat,
+        tanNarx: tan,
+        komissiya: xizmat - tan,
+        emoji: s.emoji,
+        miqdor: 1,
+      });
       Modal.close();
       renderCart();
       Toast.show('Savatga qo\'shildi ✓', 'success');
@@ -287,7 +336,9 @@ const Kassa = (() => {
         ${cart.map(ci => `
           <div class="cart-item">
             <span>${esc(ci.emoji)}</span>
-            <span class="ci-name">${esc(ci.nom)}</span>
+            <span class="ci-name">${esc(ci.nom)}${ci.komissiya != null
+              ? `<br><small class="muted" style="font-weight:400">Tan: ${money(ci.tanNarx)} · Kom: ${money(ci.komissiya)}</small>`
+              : ''}</span>
             <span class="qty">
               <button onclick="Kassa.changeQty('${ci.id}',-1)">−</button>
               <span>${ci.miqdor}</span>
@@ -455,7 +506,10 @@ const Kassa = (() => {
       filialId: branch ? branch.id : (shift.filialId || ''),
       mijozId: customerId,
       mijoz: cust ? cust.ism : '',
-      items: cart.map(ci => ({ id: ci.id, nom: ci.nom, narx: ci.narx, miqdor: ci.miqdor })),
+      items: cart.map(ci => ({
+        id: ci.id, nom: ci.nom, narx: ci.narx, miqdor: ci.miqdor,
+        ...(ci.komissiya != null ? { tanNarx: ci.tanNarx, komissiya: ci.komissiya } : {}),
+      })),
       oraliq: c.subtotal,
       chegirma: c.chegirma,
       ballSarflandi: pointsRedeem,
@@ -532,6 +586,7 @@ const Kassa = (() => {
         <table>
           ${items.map(c => `
             <tr><td>${esc(c.nom)}</td></tr>
+            ${c.komissiya != null ? `<tr><td colspan="2" style="font-size:11px;color:#555">Tan: ${Number(c.tanNarx).toLocaleString('uz-UZ')} + Kom: ${Number(c.komissiya).toLocaleString('uz-UZ')}</td></tr>` : ''}
             <tr><td>${c.miqdor} x ${Number(c.narx).toLocaleString('uz-UZ')}</td>
                 <td class="r">${(c.narx*c.miqdor).toLocaleString('uz-UZ')}</td></tr>`).join('')}
         </table>
