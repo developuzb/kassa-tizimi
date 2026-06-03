@@ -9,6 +9,7 @@ const Kassa = (() => {
   let discount = { type: 'foiz', value: 0 }; // chegirma: foiz | summa
   let customerId = null;                  // tanlangan mijoz
   let pointsRedeem = 0;                    // sarflanadigan sadoqat ballari
+  let activeCat = '';                      // tab filtri: '' = hammasi, '__pin__' = pinlangan, yoki kategoriya
 
   function money(n) { return Number(n).toLocaleString('uz-UZ') + ' ' + esc(Storage.getSettings().valyuta); }
 
@@ -62,9 +63,6 @@ const Kassa = (() => {
       return;
     }
 
-    const services = Storage.getServices().filter(s => s.aktiv);
-    const cats = [...new Set(services.map(s => s.kategoriya))];
-
     root.innerHTML = `
       <div class="row-between">
         <h2 class="section-title">🛒 Kassa</h2>
@@ -73,11 +71,11 @@ const Kassa = (() => {
 
       <div class="toolbar">
         <input class="input" id="kassa-search" placeholder="🔎 Qidirish yoki shtrix-kod skaner..." />
-        <select class="input" id="kassa-cat" style="max-width:160px">
-          <option value="">Barchasi</option>
-          ${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
-        </select>
+        <button class="btn btn-ghost" style="width:auto" onclick="Kassa.quickAdd()">➕ Tezkor</button>
       </div>
+
+      <!-- Kategoriya tablari: Hammasi / Pinlangan / har bir kategoriya -->
+      <div class="cat-tabs" id="kassa-tabs"></div>
 
       <div class="kassa-layout">
         <div class="grid" id="kassa-grid"></div>
@@ -90,18 +88,21 @@ const Kassa = (() => {
     searchEl.oninput = renderGrid;
     // Shtrix-kod skaner odatda "Enter" yuboradi — to'g'ridan-to'g'ri savatga qo'shamiz
     searchEl.onkeydown = (e) => { if (e.key === 'Enter') scan(); };
-    document.getElementById('kassa-cat').onchange = renderGrid;
+    renderTabs();
     renderGrid();
     renderCart();
   }
 
   function renderGrid() {
     const q = (document.getElementById('kassa-search')?.value || '').toLowerCase();
-    const cat = document.getElementById('kassa-cat')?.value || '';
-    const services = Storage.getServices()
+    let services = Storage.getServices()
       .filter(s => s.aktiv)
-      .filter(s => !cat || s.kategoriya === cat)
+      // tab filtri: hammasi / pinlangan / tanlangan kategoriya
+      .filter(s => activeCat === '' ? true : activeCat === '__pin__' ? s.pin : s.kategoriya === activeCat)
       .filter(s => s.nom.toLowerCase().includes(q) || (s.shtrix || '').includes(q));
+
+    // Pinlangan xizmatlar doim ro'yxat tepasida
+    services = services.slice().sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
 
     const grid = document.getElementById('kassa-grid');
     if (services.length === 0) {
@@ -110,11 +111,13 @@ const Kassa = (() => {
     }
     grid.innerHTML = services.map(s => {
       const tugagan = s.qoldiq != null && s.qoldiq <= 0;
+      const narxLabel = s.ochiqNarx ? 'Narx so\'raladi' : money(s.narx);
       return `
-      <div class="service-card ${tugagan ? 'disabled' : ''}" ${tugagan ? '' : `onclick="Kassa.add('${s.id}')"`}>
+      <div class="service-card ${tugagan ? 'disabled' : ''} ${s.pin ? 'pinned' : ''}" ${tugagan ? '' : `onclick="Kassa.add('${s.id}')"`}>
+        <button class="pin-btn ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Kassa.togglePin(event,'${s.id}')">📌</button>
         <span class="emoji">${esc(s.emoji) || '🏷️'}</span>
         <span class="name">${esc(s.nom)}</span>
-        <span class="price">${money(s.narx)}</span>
+        <span class="price">${narxLabel}</span>
         <span class="cat">${esc(s.kategoriya)}${s.qoldiq != null ? ` • ${tugagan ? 'tugadi' : 'qoldiq: ' + s.qoldiq}` : ''}</span>
       </div>`;
     }).join('');
@@ -123,6 +126,8 @@ const Kassa = (() => {
   function add(id) {
     const s = Storage.getServices().find(x => x.id === id);
     if (!s) return;
+    // Narxi belgilanmagan xizmat — avval narx so'raymiz (PriceInputModal)
+    if (s.ochiqNarx) { askPrice(s); return; }
     const item = cart.find(c => c.id === id);
     // Qoldiq kuzatilayotgan bo'lsa — ortiqcha qo'shishni bloklaymiz
     if (s.qoldiq != null) {
@@ -132,6 +137,103 @@ const Kassa = (() => {
     if (item) item.miqdor++;
     else cart.push({ id: s.id, nom: s.nom, narx: s.narx, emoji: s.emoji, miqdor: 1 });
     renderCart();
+  }
+
+  /* ---------- Kategoriya tablari (CategoryTabs): Hammasi / Pinlangan / kategoriyalar ---------- */
+  function renderTabs() {
+    const el = document.getElementById('kassa-tabs');
+    if (!el) return;
+    const services = Storage.getServices().filter(s => s.aktiv);
+    const cats = [...new Set(services.map(s => s.kategoriya).filter(Boolean))];
+    const hasPinned = services.some(s => s.pin);
+    const tabs = [{ k: '', label: 'Hammasi' }];
+    if (hasPinned) tabs.push({ k: '__pin__', label: '📌 Pinlangan' });
+    cats.forEach(c => tabs.push({ k: c, label: c }));
+    // tanlangan tab endi mavjud bo'lmasa — "Hammasi"ga qaytamiz
+    if (!tabs.some(t => t.k === activeCat)) activeCat = '';
+    el.innerHTML = tabs.map((t, i) =>
+      `<button class="cat-tab ${activeCat === t.k ? 'active' : ''}" data-i="${i}">${esc(t.label)}</button>`
+    ).join('');
+    el.querySelectorAll('.cat-tab').forEach((b, i) => { b.onclick = () => setCat(tabs[i].k); });
+  }
+  function setCat(k) { activeCat = k; renderTabs(); renderGrid(); }
+
+  /* ---------- Pinga qo'yish (📌) — pin holati xizmat obyektida (localStorage) ---------- */
+  function togglePin(ev, id) {
+    if (ev) ev.stopPropagation();           // karta bosilishi (savatga qo'shish) ishlamasin
+    const s = Storage.getServices().find(x => x.id === id);
+    if (!s) return;
+    Storage.updateService(id, { pin: !s.pin });
+    renderTabs();
+    renderGrid();
+    Sheets.scheduleSync();
+  }
+
+  /* ---------- Narx kiritish modali (PriceInputModal) — narxi belgilanmagan xizmatlar ---------- */
+  function askPrice(s) {
+    Modal.open(`
+      <h3>💵 Narx kiritish</h3>
+      <p class="muted" style="margin-bottom:14px">${esc(s.emoji) || '🏷️'} <b>${esc(s.nom)}</b></p>
+      <div class="field"><label>Narx (${esc(Storage.getSettings().valyuta)})</label>
+        <input class="input" id="ap-narx" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+      <button class="btn btn-primary" id="ap-go">Savatga qo'shish</button>
+    `);
+    const inp = document.getElementById('ap-narx');
+    inp.focus();
+    document.getElementById('ap-go').onclick = () => {
+      const narx = Number(inp.value);
+      if (!narx || narx <= 0) { Toast.show('Narx kiriting', 'error'); return; }
+      // ochiq narxli yozuv — har safar alohida qator bo'lsin (id noyob)
+      cart.push({ id: s.id + '~' + Date.now().toString(36), nom: s.nom, narx, emoji: s.emoji, miqdor: 1 });
+      Modal.close();
+      renderCart();
+      Toast.show('Savatga qo\'shildi ✓', 'success');
+    };
+  }
+
+  /* ---------- Tezkor qo'shish (SaleSession) — sotuv jarayonida yangi mahsulot/xizmat ---------- */
+  function quickAdd() {
+    const cats = [...new Set(Storage.getServices().map(x => x.kategoriya).filter(Boolean))];
+    if (!cats.includes('Servis')) cats.push('Servis');
+    Modal.open(`
+      <h3>➕ Tezkor mahsulot/xizmat</h3>
+      <div class="field"><label>Nomi *</label>
+        <input class="input" id="qa-nom" placeholder="Masalan: Ta'mirlash"></div>
+      <div class="field"><label>Kategoriya</label>
+        <input class="input" id="qa-kat" list="qa-cats" placeholder="Boshqa">
+        <datalist id="qa-cats">${cats.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="qa-ochiq" style="width:auto"> Narx sotuvda so'ralsin</label>
+      <div class="field" id="qa-narx-wrap"><label>Narxi (${esc(Storage.getSettings().valyuta)})</label>
+        <input class="input" id="qa-narx" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+      <button class="btn btn-primary" id="qa-go">Saqlash va savatga qo'shish</button>
+    `);
+    const ochiqEl = document.getElementById('qa-ochiq');
+    const narxWrap = document.getElementById('qa-narx-wrap');
+    ochiqEl.onchange = () => { narxWrap.style.display = ochiqEl.checked ? 'none' : 'block'; };
+    document.getElementById('qa-go').onclick = () => {
+      const nom = document.getElementById('qa-nom').value.trim();
+      if (!nom) { Toast.show('Nomini kiriting', 'error'); return; }
+      const ochiq = ochiqEl.checked;
+      const narx = ochiq ? 0 : Number(document.getElementById('qa-narx').value);
+      if (!ochiq && (!narx || narx <= 0)) { Toast.show('Narx kiriting', 'error'); return; }
+      const kategoriya = document.getElementById('qa-kat').value.trim() || 'Boshqa';
+      // Katalogga saqlaymiz (Firebase'ga ham sinxron) va darrov shu sotuvga qo'shamiz
+      const created = Storage.addService({
+        nom, narx, kategoriya, emoji: '🏷️', ochiqNarx: ochiq, aktiv: true,
+      });
+      Sheets.scheduleSync();
+      Modal.close();
+      renderTabs();
+      renderGrid();
+      if (ochiq) {
+        askPrice(created);                  // narx so'raymiz, so'ng savatga qo'shiladi
+      } else {
+        cart.push({ id: created.id, nom: created.nom, narx: created.narx, emoji: created.emoji, miqdor: 1 });
+        renderCart();
+        Toast.show('Qo\'shildi ✓', 'success');
+      }
+    };
   }
 
   // Shtrix-kod skaner / qidiruv maydonidan to'g'ridan-to'g'ri savatga qo'shish
@@ -447,5 +549,5 @@ const Kassa = (() => {
     win.document.close();
   }
 
-  return { render, add, scan, changeQty, clear, checkout, scrollToCart };
+  return { render, add, scan, changeQty, clear, checkout, scrollToCart, setCat, togglePin, quickAdd };
 })();

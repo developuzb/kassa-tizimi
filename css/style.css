@@ -256,6 +256,49 @@ body {
 .cart-fab-pay:active { transform: scale(0.96); }
 @media (min-width: 900px) { #kassa-floatbar { display: none; } }
 
+/* ===================== KATEGORIYA TABLARI ===================== */
+.cat-tabs {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 12px;
+  margin-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab {
+  flex: none; border: 1px solid var(--card-border); background: var(--surface);
+  color: var(--text-2); font-weight: 700; font-size: 13.5px; cursor: pointer;
+  padding: 9px 16px; border-radius: 13px; white-space: nowrap;
+  transition: background .2s, color .2s, border-color .2s, transform .12s;
+}
+.cat-tab:hover { background: var(--fill); }
+.cat-tab:active { transform: scale(0.95); }
+.cat-tab.active {
+  background: var(--accent-grad); color: #fff; border-color: transparent;
+  box-shadow: var(--shadow-primary);
+}
+
+/* ===================== PIN (📌) ===================== */
+.pin-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 30px; height: 30px; border-radius: 9px; border: none; cursor: pointer;
+  background: var(--fill); font-size: 13px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: .3; filter: grayscale(1);
+  transition: opacity .2s, background .2s, transform .12s;
+}
+.pin-btn:hover { opacity: .65; }
+.pin-btn:active { transform: scale(0.84); }
+.pin-btn.active { opacity: 1; filter: none; background: var(--accent-soft); }
+.service-card.pinned { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow-card); }
+.list-item.pinned { border-color: var(--primary); }
+.icon-btn.pin-tog { opacity: .3; filter: grayscale(1); }
+.icon-btn.pin-tog.active { opacity: 1; filter: none; }
+
+/* Foyda/margin paneli (faqat Servis kategoriyasi formasida) */
+.profit-box {
+  background: var(--success-soft); color: var(--success);
+  border-radius: 12px; padding: 11px 14px; font-weight: 700; font-size: 14px;
+  margin-bottom: 14px;
+}
+
 .service-card {
   position: relative; overflow: hidden;
   background: var(--surface);
