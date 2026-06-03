@@ -79,8 +79,11 @@ const Kassa = (() => {
         </select>
       </div>
 
-      <div class="grid" id="kassa-grid"></div>
-      <div id="kassa-cart"></div>
+      <div class="kassa-layout">
+        <div class="grid" id="kassa-grid"></div>
+        <aside class="kassa-side"><div id="kassa-cart"></div></aside>
+      </div>
+      <div id="kassa-floatbar"></div>
     `;
 
     const searchEl = document.getElementById('kassa-search');
@@ -167,8 +170,13 @@ const Kassa = (() => {
 
   function renderCart() {
     const el = document.getElementById('kassa-cart');
+    const fb = document.getElementById('kassa-floatbar');
     if (!el) return;
-    if (cart.length === 0) { el.innerHTML = ''; return; }
+    if (cart.length === 0) {
+      el.innerHTML = '';
+      if (fb) fb.innerHTML = '';
+      return;
+    }
 
     const c = calc();
     el.innerHTML = `
@@ -192,6 +200,23 @@ const Kassa = (() => {
         <button class="btn btn-primary" onclick="Kassa.checkout()">💳 To'lov (${money(c.jami)})</button>
       </div>
     `;
+
+    // Suzuvchi savat paneli (telefonda) — doim ko'rinadi, aylantirish shart emas
+    if (fb) {
+      const n = cart.reduce((a, ci) => a + ci.miqdor, 0);
+      fb.innerHTML = `
+        <div class="cart-fab">
+          <button class="cart-fab-info" onclick="Kassa.scrollToCart()">
+            🧾 ${n} ta<span class="cart-fab-sum">${money(c.jami)}</span>
+          </button>
+          <button class="cart-fab-pay" onclick="Kassa.checkout()">💳 To'lov</button>
+        </div>`;
+    }
+  }
+
+  // Suzuvchi paneldan savatga "sakrash"
+  function scrollToCart() {
+    document.getElementById('kassa-cart')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function clear() {
@@ -422,5 +447,5 @@ const Kassa = (() => {
     win.document.close();
   }
 
-  return { render, add, scan, changeQty, clear, checkout };
+  return { render, add, scan, changeQty, clear, checkout, scrollToCart };
 })();
