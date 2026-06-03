@@ -139,13 +139,13 @@ const Inventar = (() => {
 
     document.getElementById('f-save').onclick = () => {
       const nom = document.getElementById('f-nom').value.trim();
+      const isPaynet = paynetEl.checked;
       const ochiqNarx = ochiqEl.checked;
-      const narx = ochiqNarx ? 0 : Number(narxEl.value);
+      const narx = (ochiqNarx || isPaynet) ? 0 : Number(narxEl.value);
       if (!nom) { Toast.show('Nomini kiriting', 'error'); return; }
-      if (!ochiqNarx && (!narx || narx < 0)) { Toast.show('Narx kiriting yoki "narx belgilanmagan"ni belgilang', 'error'); return; }
+      if (!ochiqNarx && !isPaynet && (!narx || narx < 0)) { Toast.show('Narx kiriting yoki "narx belgilanmagan"ni belgilang', 'error'); return; }
       const kategoriya = katEl.value.trim() || 'Boshqa';
       const isServis = kategoriya.toLowerCase() === 'servis';
-      const isPaynet = paynetEl.checked;
       const qoldiqRaw = document.getElementById('f-qoldiq').value;
       const data = {
         nom, narx: isPaynet ? 0 : narx,
