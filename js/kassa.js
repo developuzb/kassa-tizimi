@@ -111,7 +111,10 @@ const Kassa = (() => {
     }
     grid.innerHTML = services.map(s => {
       const tugagan = s.qoldiq != null && s.qoldiq <= 0;
-      const narxLabel = s.isPaynet ? '💸 Tan + xizmat narxi' : s.ochiqNarx ? 'Narx so\'raladi' : money(s.narx);
+      const narxLabel = s.isPaynet ? '💸 Tan + xizmat narxi'
+        : s.kategoriya === 'Servis' ? '🛠 Narx/foyda sotuvda'
+        : s.ochiqNarx ? 'Narx so\'raladi'
+        : money(s.narx);
       return `
       <div class="service-card ${tugagan ? 'disabled' : ''} ${s.pin ? 'pinned' : ''}" ${tugagan ? '' : `onclick="Kassa.add('${s.id}')"`}>
         <button class="pin-btn ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Kassa.togglePin(event,'${s.id}')">📌</button>
@@ -128,6 +131,8 @@ const Kassa = (() => {
     if (!s) return;
     // Paynet / to'lov xizmati — tan narx va xizmat narxi so'raymiz
     if (s.isPaynet) { askPaynet(s); return; }
+    // "Servis" kategoriyasi — tan narx va sotish narxi (foyda) SOTUV PAYTIDA kiritiladi
+    if (s.kategoriya === 'Servis') { askPaynet(s); return; }
     // Narxi belgilanmagan xizmat — avval narx so'raymiz (PriceInputModal)
     if (s.ochiqNarx) { askPrice(s); return; }
     const item = cart.find(c => c.id === id);

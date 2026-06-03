@@ -39,7 +39,10 @@ const Inventar = (() => {
       const servis = s.kategoriya === 'Servis' && !s.isPaynet;
       const foyda = (servis && s.tanNarx != null) ? (s.narx - s.tanNarx) : null;
       const margin = (foyda != null && s.narx) ? Math.round(foyda / s.narx * 100) : null;
-      const narxText = s.isPaynet ? '💸 Tan + xizmat narxi (sotuvda)' : s.ochiqNarx ? 'Narx: sotuvda' : money(s.narx);
+      const narxText = s.isPaynet ? '💸 Tan + xizmat narxi (sotuvda)'
+        : s.kategoriya === 'Servis' ? '🛠 Narx/foyda sotuvda'
+        : s.ochiqNarx ? 'Narx: sotuvda'
+        : money(s.narx);
       return `
       <div class="list-item ${s.pin ? 'pinned' : ''}">
         <div>
@@ -82,11 +85,9 @@ const Inventar = (() => {
       <div class="field" id="f-narx-wrap"><label>Narxi (${esc(Storage.getSettings().valyuta)}) *</label>
         <input class="input" id="f-narx" type="number" inputmode="numeric" value="${s?.narx ?? ''}" placeholder="40000"></div>
 
-      <!-- Tan narx + foyda/margin FAQAT "Servis" kategoriyasi uchun ko'rinadi -->
-      <div id="f-servis" style="display:none">
-        <div class="field"><label>Tan narx / cost (${esc(Storage.getSettings().valyuta)})</label>
-          <input class="input" id="f-tan" type="number" inputmode="numeric" value="${s?.tanNarx ?? ''}" placeholder="0"></div>
-        <div class="profit-box" id="f-foyda">Foyda: —</div>
+      <!-- "Servis": narx, tan narx va foyda SOTUV PAYTIDA kiritiladi (katalogda emas) -->
+      <div id="f-servis-note" class="profit-box" style="display:none;background:var(--accent-soft);color:var(--primary)">
+        🛠 Servis: narx, tan narx va foyda har <b>sotuvda</b> kiritiladi.
       </div>
 
       <div class="field"><label>Shtrix-kod (ixtiyoriy)</label>
@@ -103,56 +104,47 @@ const Inventar = (() => {
       <button class="btn btn-primary" id="f-save">💾 Saqlash</button>
     `);
 
-    // ----- Dinamik logika: Servis -> tan narx/foyda; ochiq narx -> narx maydonini yashirish -----
+    // ----- Dinamik logika: Servis/Paynet -> narx sotuvda; ochiq narx -> narx yashirinadi -----
     const katEl = document.getElementById('f-kat');
     const narxEl = document.getElementById('f-narx');
     const narxWrap = document.getElementById('f-narx-wrap');
-    const tanEl = document.getElementById('f-tan');
-    const servisBox = document.getElementById('f-servis');
-    const foydaEl = document.getElementById('f-foyda');
+    const servisNote = document.getElementById('f-servis-note');
     const ochiqEl = document.getElementById('f-ochiq');
-
     const paynetEl = document.getElementById('f-paynet');
 
     function refresh() {
       const isPaynet = paynetEl.checked;
       const isServis = katEl.value.trim().toLowerCase() === 'servis';
-      // Paynet: narx maydonlari yashiriladi (narx sotuvda dinamik kiritiladi)
-      narxWrap.style.display = (isPaynet || ochiqEl.checked) ? 'none' : 'block';
-      servisBox.style.display = (isServis && !isPaynet) ? 'block' : 'none';
-      // Paynet tanlansa ochiqNarx avtomatik o'chiriladi (ular bir-birini istisno qiladi)
+      // Servis ham, Paynet ham — narx (va tan narx/foyda) SOTUV PAYTIDA kiritiladi
+      narxWrap.style.display = (isPaynet || isServis || ochiqEl.checked) ? 'none' : 'block';
+      servisNote.style.display = (isServis && !isPaynet) ? 'block' : 'none';
+      // Paynet tanlansa ochiqNarx avtomatik o'chiriladi (bir-birini istisno qiladi)
       if (isPaynet) ochiqEl.checked = false;
-      if (isServis && !isPaynet) {
-        const narx = Number(narxEl.value) || 0;
-        const tan = Number(tanEl.value) || 0;
-        const foyda = narx - tan;
-        const margin = narx ? Math.round(foyda / narx * 100) : 0;
-        foydaEl.textContent = `Foyda: ${money(foyda)}  •  Margin: ${margin}%`;
-      }
     }
     paynetEl.onchange = refresh;
     katEl.oninput = refresh;
     narxEl.oninput = refresh;
-    tanEl.oninput = refresh;
     ochiqEl.onchange = refresh;
     refresh();
 
     document.getElementById('f-save').onclick = () => {
       const nom = document.getElementById('f-nom').value.trim();
       const isPaynet = paynetEl.checked;
-      const ochiqNarx = ochiqEl.checked;
-      const narx = (ochiqNarx || isPaynet) ? 0 : Number(narxEl.value);
-      if (!nom) { Toast.show('Nomini kiriting', 'error'); return; }
-      if (!ochiqNarx && !isPaynet && (!narx || narx < 0)) { Toast.show('Narx kiriting yoki "narx belgilanmagan"ni belgilang', 'error'); return; }
       const kategoriya = katEl.value.trim() || 'Boshqa';
       const isServis = kategoriya.toLowerCase() === 'servis';
+      const ochiqNarx = isPaynet ? false : ochiqEl.checked;
+      // Servis/Paynet/ochiqNarx -> narx (va tan narx/foyda) sotuv paytida kiritiladi
+      const narxAtSale = isPaynet || isServis || ochiqNarx;
+      const narx = narxAtSale ? 0 : Number(narxEl.value);
+      if (!nom) { Toast.show('Nomini kiriting', 'error'); return; }
+      if (!narxAtSale && (!narx || narx < 0)) { Toast.show('Narx kiriting yoki "narx belgilanmagan"ni belgilang', 'error'); return; }
       const qoldiqRaw = document.getElementById('f-qoldiq').value;
       const data = {
-        nom, narx: isPaynet ? 0 : narx,
+        nom, narx,
         kategoriya,
-        ochiqNarx: isPaynet ? false : ochiqNarx,
+        ochiqNarx,
         isPaynet,
-        tanNarx: isServis && !isPaynet ? (Number(tanEl.value) || 0) : null,
+        tanNarx: null,                       // tan narx/foyda endi sotuv paytida kiritiladi
         shtrix: document.getElementById('f-shtrix').value.trim(),
         emoji: document.getElementById('f-emoji').value.trim() || '🏷️',
         qoldiq: qoldiqRaw === '' ? null : Number(qoldiqRaw),
