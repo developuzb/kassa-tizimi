@@ -33,9 +33,35 @@ const Yorliq = (() => {
 
   // 3 maqsadli o'lcham. cols — A4'da ustunlar; pw — namuna kengligi; bcH — shtrix balandligi
   const SIZES = {
-    rasta: { t: 'Narxcha — rasta',          desc: "Javon/rastada narxni tez ko'rsatish uchun ixcham yorliq", cols: 4, pw: '46mm', minH: '30mm', bcH: 24 },
-    orta:  { t: "O'rtacha — mahsulot yorlig'i", desc: 'Mahsulotni belgilash uchun brend sarlavhali muvozanatli yorliq', cols: 3, pw: '62mm', minH: '44mm', bcH: 38 },
-    keng:  { t: 'Katta — savdo afishasi',   desc: "Diqqatni tortib savdoni oshiruvchi yirik chegirma/aksiya yorlig'i", cols: 2, pw: '96mm', minH: '74mm', bcH: 54 },
+    rasta: { name: 'Rasta narxchasi', purpose: "Javonda tez o'qiladigan ixcham narx", cols: 4, pw: '46mm', minH: '30mm', bcH: 24 },
+    orta:  { name: "O'rtacha yorliq",  purpose: 'Mahsulotni belgilash uchun standart',  cols: 3, pw: '62mm', minH: '44mm', bcH: 38 },
+    keng:  { name: 'Savdo afishasi',   purpose: "Diqqatni tortuvchi yirik aksiya",      cols: 2, pw: '96mm', minH: '74mm', bcH: 54 },
+  };
+
+  /* ---------- Toza SVG ikonkalar (emoji o'rniga — kompyuterda ham aniq) ---------- */
+  const I = (p) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px">${p}</svg>`;
+  const ICONS = {
+    tag:   I('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'),
+    eye:   I('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+    print: I('<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'),
+    dl:    I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    pct:   I('<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'),
+  };
+
+  // Har o'lcham uchun mini-eskiz (kartada ko'rsatish uchun) — kenglik bilan maqsadni bildiradi
+  const GLYPHS = {
+    rasta: `<svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+      <rect x="17" y="6" width="14" height="36" rx="2.5"/><line x1="21" y1="13" x2="27" y2="13"/>
+      <rect x="20" y="19" width="8" height="7" rx="1.5" fill="currentColor" stroke="none"/>
+      <rect x="20" y="32" width="8" height="5" rx="1" fill="currentColor" stroke="none" opacity=".35"/></svg>`,
+    orta: `<svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+      <rect x="9" y="9" width="30" height="30" rx="3"/><rect x="9" y="9" width="30" height="7" rx="3" fill="currentColor" stroke="none"/>
+      <line x1="15" y1="23" x2="33" y2="23"/><rect x="15" y="27" width="18" height="6" rx="1.5" fill="currentColor" stroke="none"/>
+      <rect x="15" y="35" width="18" height="2.5" fill="currentColor" stroke="none" opacity=".35"/></svg>`,
+    keng: `<svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round">
+      <rect x="4" y="9" width="40" height="30" rx="3"/><rect x="4" y="9" width="40" height="9" rx="3" fill="currentColor" stroke="none"/>
+      <rect x="11" y="22" width="26" height="9" rx="2" fill="currentColor" stroke="none"/>
+      <rect x="11" y="34" width="26" height="2.5" fill="currentColor" stroke="none" opacity=".35"/></svg>`,
   };
 
   // Tanlangan format uchun yaroqli shtrix qiymatini qaytaradi (kerak bo'lsa generatsiya)
@@ -118,8 +144,8 @@ const Yorliq = (() => {
     if (d.isDisc) {
       return `<div style="min-height:${d.minH};display:flex;flex-direction:column;border:3px solid #e11d48;border-radius:12px;overflow:hidden;font-family:Arial,sans-serif;background:#fff;box-shadow:inset 0 0 0 1px #fff">
         <div style="background:linear-gradient(135deg,#e11d48,#f59e0b);color:#fff;padding:3mm 2mm;text-align:center">
-          <div style="font-size:15pt;font-weight:900;letter-spacing:2px;line-height:1">🔥 CHEGIRMA</div>
-          ${d.shop ? `<div style="font-size:7pt;font-weight:700;opacity:.92;margin-top:1mm;letter-spacing:.5px;text-transform:uppercase">${esc(d.shop)}</div>` : ''}
+          <div style="font-size:16pt;font-weight:900;letter-spacing:4px;line-height:1">CHEGIRMA</div>
+          ${d.shop ? `<div style="font-size:7pt;font-weight:700;opacity:.92;margin-top:1.2mm;letter-spacing:.5px;text-transform:uppercase">${esc(d.shop)}</div>` : ''}
         </div>
         <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2mm;padding:3mm 3mm 2mm">
           <div style="font-size:15pt;font-weight:800;line-height:1.15;color:#0f172a;text-align:center">${esc(d.nom)}</div>
@@ -128,7 +154,7 @@ const Yorliq = (() => {
             <span style="background:#e11d48;color:#fff;font-weight:900;font-size:13pt;border-radius:999px;padding:2px 11px;line-height:1.3">${d.badge}</span>
           </div>
           <div style="color:#e11d48;font-size:30pt;font-weight:900;line-height:1">${d.yangiStr}</div>
-          <div style="background:#fef3c7;color:#b45309;font-weight:800;font-size:9pt;border-radius:999px;padding:2px 12px">💰 Tejaysiz: ${d.savingStr}</div>
+          <div style="background:#fff7ed;color:#b45309;font-weight:800;font-size:9pt;border-radius:999px;padding:2px 13px;border:1px solid #fed7aa;letter-spacing:.3px">Tejaysiz: ${d.savingStr}</div>
           <div style="width:100%;margin-top:auto">${d.svg}</div>
         </div>
       </div>`;
@@ -198,18 +224,26 @@ const Yorliq = (() => {
     const sel = prefillId || services[0].id;
 
     Modal.open(`
-      <h3>🏷️ Yorliq / narx etiketkasi</h3>
+      <h3>${ICONS.tag} Yorliq / narx etiketkasi</h3>
 
       <div class="field"><label>Mahsulot</label>
         <select class="input" id="y-prod">
           ${services.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.nom)} — ${money(s.narx)}</option>`).join('')}
         </select></div>
 
-      <div class="field"><label>Maqsad / o'lcham</label>
-        <select class="input" id="y-size">
-          ${Object.entries(SIZES).map(([k, z]) => `<option value="${k}" ${k === 'orta' ? 'selected' : ''}>${z.t}</option>`).join('')}
-        </select>
-        <div class="muted" id="y-size-desc" style="font-size:12px;margin-top:5px"></div>
+      <div class="field"><label>Maqsad va o'lcham</label>
+        <div class="size-picker" id="y-sizes">
+          ${Object.entries(SIZES).map(([k, z]) => `
+            <button type="button" class="size-card ${k === 'orta' ? 'active' : ''}" data-k="${k}">
+              <span class="sc-glyph">${GLYPHS[k]}</span>
+              <span class="sc-meta">
+                <span class="sc-title">${esc(z.name)}</span>
+                <span class="sc-sub">${esc(z.purpose)}</span>
+                <span class="sc-dim">${z.cols} ustun · ${z.pw}</span>
+              </span>
+            </button>`).join('')}
+        </div>
+        <input type="hidden" id="y-size" value="orta">
       </div>
 
       <div class="toolbar" style="margin:0 0 12px">
@@ -221,14 +255,16 @@ const Yorliq = (() => {
           </select></div>
       </div>
 
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">
-        <input type="checkbox" id="y-price" checked style="width:auto"> Narx ko'rsatilsin</label>
+      <label class="opt-toggle on" id="y-price-lbl">
+        <input type="checkbox" id="y-price" checked>
+        <span class="ot-ico">${ICONS.tag}</span><span>Narx ko'rsatilsin</span></label>
 
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">
-        <input type="checkbox" id="y-disc" style="width:auto"> 🔖 Chegirma / aksiya yorlig'i</label>
+      <label class="opt-toggle" id="y-disc-lbl">
+        <input type="checkbox" id="y-disc">
+        <span class="ot-ico">${ICONS.pct}</span><span>Chegirma / aksiya yorlig'i</span></label>
 
       <div id="y-disc-box" style="display:none">
-        <div class="toolbar" style="margin:0 0 12px">
+        <div class="toolbar" style="margin:8px 0 12px">
           <div class="field" style="flex:1;margin:0"><label>Chegirma qiymati</label>
             <input class="input" id="y-disc-val" type="number" inputmode="numeric" min="0" value="0"></div>
           <div class="field" style="flex:1;margin:0"><label>Turi</label>
@@ -239,31 +275,42 @@ const Yorliq = (() => {
         </div>
       </div>
 
-      <div class="field" style="margin-bottom:14px"><label>👁️ Namuna</label>
-        <div id="y-preview" style="background:#f1f5f9;border:1px solid var(--border);border-radius:12px;padding:14px;overflow:auto;max-height:320px;display:flex;justify-content:center"></div>
+      <div class="field" style="margin-bottom:14px"><label>${ICONS.eye} Namuna</label>
+        <div id="y-preview" style="background:var(--fill);border:1px solid var(--card-border);border-radius:14px;padding:16px;overflow:auto;max-height:340px;display:flex;justify-content:center"></div>
       </div>
 
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="Modal.close()">Bekor</button>
-        <button class="btn btn-primary" id="y-print">🖨️ Chop etish</button>
+        <button class="btn btn-primary" id="y-print">${ICONS.print} Chop etish</button>
       </div>
     `);
 
-    const sizeDesc = () => { document.getElementById('y-size-desc').textContent = (SIZES[document.getElementById('y-size').value] || {}).desc || ''; };
+    // Karta tanlash — o'lchamni hidden input'ga yozadi
+    document.querySelectorAll('#y-sizes .size-card').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#y-sizes .size-card').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('y-size').value = btn.dataset.k;
+        renderPreview();
+      };
+    });
+
+    // Toggle'lar (narx / chegirma) — vizual holatni yangilaydi
+    const priceChk = document.getElementById('y-price');
+    priceChk.onchange = () => { document.getElementById('y-price-lbl').classList.toggle('on', priceChk.checked); renderPreview(); };
     const discChk = document.getElementById('y-disc');
     discChk.onchange = () => {
+      document.getElementById('y-disc-lbl').classList.toggle('on', discChk.checked);
       document.getElementById('y-disc-box').style.display = discChk.checked ? 'block' : 'none';
       renderPreview();
     };
-    // Har bir o'zgarishda namunani yangilaymiz
-    ['y-prod', 'y-size', 'y-fmt', 'y-price', 'y-disc-val', 'y-disc-type'].forEach(id => {
+    // Boshqa o'zgarishlarda namunani yangilaymiz
+    ['y-prod', 'y-fmt', 'y-disc-val', 'y-disc-type'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.oninput = renderPreview; el.onchange = () => { if (id === 'y-size') sizeDesc(); renderPreview(); }; }
+      if (el) { el.oninput = renderPreview; el.onchange = renderPreview; }
     });
-    document.getElementById('y-price').onchange = renderPreview;
     document.getElementById('y-print').onclick = doPrint;
 
-    sizeDesc();
     renderPreview();
   }
 
@@ -299,7 +346,7 @@ const Yorliq = (() => {
     w.document.write(html);
     w.document.close();
     Modal.close();
-    Toast.show(`${qty} ta yorliq tayyorlandi 🖨️`, 'success');
+    Toast.show(`${qty} ta yorliq tayyorlandi`, 'success');
   }
 
   return { open };

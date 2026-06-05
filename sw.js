@@ -5,7 +5,7 @@
    (ular har doim tarmoqqa boradi, offline bo'lsa navbatga tushadi).
    ============================================================ */
 
-const CACHE = 'kassa-v10';
+const CACHE = 'kassa-v11';
 const ASSETS = [
   './',
   './index.html',

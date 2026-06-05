@@ -291,6 +291,41 @@ body {
 .list-item.pinned { border-color: var(--primary); }
 .list-item.tugagan { opacity: .72; border-style: dashed; }
 .icon-btn.pin-tog { opacity: .3; filter: grayscale(1); }
+
+/* ===== Yorliq o'lcham tanlagich (karta) ===== */
+.size-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.size-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 13px 8px 11px; border: 1.5px solid var(--card-border); border-radius: 16px;
+  background: var(--surface); cursor: pointer; text-align: center; color: var(--muted);
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.size-card:hover { border-color: var(--accent-soft-2); transform: translateY(-2px); }
+.size-card.active { border-color: var(--primary); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--primary), var(--shadow-card); }
+.size-card .sc-glyph { width: 40px; height: 40px; display: grid; place-items: center; color: var(--muted); }
+.size-card.active .sc-glyph { color: var(--primary); }
+.size-card .sc-meta { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.size-card .sc-title { font-weight: 800; font-size: 13px; color: var(--text); letter-spacing: -.01em; }
+.size-card.active .sc-title { color: var(--primary); }
+.size-card .sc-sub { font-size: 11px; line-height: 1.25; color: var(--muted); }
+.size-card .sc-dim { font-size: 10px; font-weight: 700; letter-spacing: .3px; opacity: .65; margin-top: 1px; }
+@media (max-width: 540px) {
+  .size-picker { grid-template-columns: 1fr; gap: 7px; }
+  .size-card { flex-direction: row; justify-content: flex-start; text-align: left; gap: 13px; padding: 11px 13px; }
+  .size-card .sc-glyph { flex: none; }
+  .size-card .sc-meta { align-items: flex-start; }
+}
+/* Yorliq sozlama almashtirgichi (toggle pill) */
+.opt-toggle {
+  display: flex; align-items: center; gap: 10px; padding: 11px 13px; margin-bottom: 9px;
+  border: 1.5px solid var(--card-border); border-radius: 13px; background: var(--surface);
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text); user-select: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.opt-toggle:hover { border-color: var(--accent-soft-2); }
+.opt-toggle.on { border-color: var(--primary); background: var(--accent-soft); color: var(--primary); }
+.opt-toggle input { width: auto; margin: 0; accent-color: var(--primary); }
+.opt-toggle .ot-ico { display: inline-flex; opacity: .8; }
 .icon-btn.pin-tog.active { opacity: 1; filter: none; }
 
 /* Foyda/margin paneli (faqat Servis kategoriyasi formasida) */
