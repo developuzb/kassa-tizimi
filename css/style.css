@@ -56,7 +56,7 @@
   --shadow-float: 0 18px 50px rgba(30, 41, 99, 0.20), 0 4px 12px rgba(30, 41, 99, 0.10);
   --shadow-primary: 0 8px 22px rgba(79, 70, 229, 0.35);
 
-  --blur: saturate(180%) blur(20px);
+  --blur: saturate(150%) blur(10px);
 
   --header-h: 56px;
   --nav-h: 66px;
@@ -337,8 +337,7 @@ body {
 
 .service-card {
   position: relative; overflow: hidden;
-  background: var(--surface);
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border);
   border-radius: var(--radius); padding: 16px 15px; cursor: pointer;
   box-shadow: var(--shadow-card);
@@ -370,8 +369,7 @@ body {
 
 /* ===================== PANEL (cart, bo'limlar) ===================== */
 .cart {
-  background: var(--surface);
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border);
   border-radius: var(--radius); box-shadow: var(--shadow-card);
   margin-top: 16px; overflow: hidden;
@@ -419,8 +417,7 @@ body {
 .btn-accent   { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #3a2500; box-shadow: 0 8px 22px rgba(245,158,11,0.30); }
 .btn-accent:hover   { filter: brightness(1.04); }
 .btn-ghost {
-  background: var(--surface-strong); color: var(--primary);
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid); color: var(--primary);
   border: 1px solid var(--card-border);
 }
 .btn-ghost:hover { background: var(--accent-soft); border-color: var(--accent-soft-2); }
@@ -453,7 +450,7 @@ select.input {
 /* ===================== JADVAL ===================== */
 .table-wrap {
   overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow-card);
-  background: var(--surface); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border);
 }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -468,7 +465,7 @@ tr:last-child td { border-bottom: none; }
 @media (min-width: 600px) { .stats { grid-template-columns: repeat(4, 1fr); } }
 .stat-card {
   position: relative; overflow: hidden;
-  background: var(--surface); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border); border-radius: var(--radius);
   padding: 17px 18px; box-shadow: var(--shadow-card);
 }
@@ -541,7 +538,7 @@ tr:last-child td { border-bottom: none; }
 /* ===================== YORDAMCHILAR ===================== */
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .list-item {
-  background: var(--surface); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border); border-radius: 16px;
   box-shadow: var(--shadow-card); padding: 15px 17px; margin-bottom: 11px;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -568,8 +565,7 @@ tr:last-child td { border-bottom: none; }
 
 /* ===================== ADMIN: JILD (collapsible) ===================== */
 .adm-folder {
-  background: var(--surface);
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border);
   border-radius: var(--radius); box-shadow: var(--shadow-card);
   margin-bottom: 12px; overflow: hidden;
@@ -601,8 +597,7 @@ tr:last-child td { border-bottom: none; }
 .adm-folder .fld-body .btn-row { margin-top: 0; }
 
 .adm-quick {
-  background: var(--surface-strong);
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  background: var(--surface-solid);
   border: 1px solid var(--card-border);
   border-radius: var(--radius); box-shadow: var(--shadow-card);
   padding: 17px 18px; margin-bottom: 18px;
