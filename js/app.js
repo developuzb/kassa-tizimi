@@ -82,7 +82,13 @@ const App = (() => {
   }
 
   // Joriy ochiq ko'rinishni qayta chizadi (Firebase'dan yangi ma'lumot kelganda).
+  // OPTIMIZATSIYA: modal ochiq yoki foydalanuvchi maydonga yozayotgan bo'lsa,
+  // qayta chizmaymiz — aks holda matn/fokus yo'qoladi yoki ekran sakraydi.
   function refresh() {
+    const modalOpen = (document.getElementById('modal-root')?.innerHTML || '').trim() !== '';
+    const ae = document.activeElement;
+    const typing = ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
+    if (modalOpen || typing) { refreshHeader(); return; }   // faqat header (yengil)
     const active = document.querySelector('.view.active');
     if (active) views[active.id.replace('view-', '')]?.render();
     refreshHeader();

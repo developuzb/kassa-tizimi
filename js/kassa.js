@@ -85,7 +85,9 @@ const Kassa = (() => {
     `;
 
     const searchEl = document.getElementById('kassa-search');
-    searchEl.oninput = renderGrid;
+    // OPTIMIZATSIYA: qidiruvni debounce — har harfda emas, ~110ms keyin chizamiz
+    let searchTimer;
+    searchEl.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderGrid, 110); };
     // Shtrix-kod skaner odatda "Enter" yuboradi — to'g'ridan-to'g'ri savatga qo'shamiz
     searchEl.onkeydown = (e) => { if (e.key === 'Enter') scan(); };
     renderTabs();

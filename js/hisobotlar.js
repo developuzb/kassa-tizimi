@@ -48,34 +48,71 @@ const Hisobotlar = (() => {
     const soni = sales.length;
     const ortacha = soni ? Math.round(jami / soni) : 0;
 
+    // FOYDA — Servis/Paynet yozuvlaridagi komissiya (tan narx hisobga olingan)
+    const itemsOf = s => Array.isArray(s.items) ? s.items : [];
+    const foydaOf = s => itemsOf(s).reduce((b, it) => b + (it.komissiya != null ? it.komissiya * (it.miqdor || 1) : 0), 0);
+    const foyda = sales.reduce((a, s) => a + foydaOf(s), 0);
+
     // To'lov usullari bo'yicha
     const byPay = { naqd: 0, karta: 0, otkazma: 0 };
-    sales.forEach(s => byPay[s.tolov_usuli] = (byPay[s.tolov_usuli] || 0) + s.jami);
+    sales.forEach(s => { byPay[s.tolov_usuli] = (byPay[s.tolov_usuli] || 0) + s.jami; });
+    const payMax = Math.max(byPay.naqd, byPay.karta, byPay.otkazma, 1);
 
-    // Eng ko'p sotilgan xizmatlar
+    // Qaytarishlar
+    const refunds = allSales.filter(s => s.qaytarilgan);
+    const refundSum = refunds.reduce((a, s) => a + s.jami, 0);
+
+    // Eng ko'p sotilgan xizmatlar (items himoyalangan)
     const byService = {};
-    sales.forEach(s => s.items.forEach(it => {
-      byService[it.nom] = (byService[it.nom] || 0) + it.miqdor;
+    sales.forEach(s => itemsOf(s).forEach(it => {
+      byService[it.nom] = (byService[it.nom] || 0) + (it.miqdor || 1);
     }));
     const topServices = Object.entries(byService).sort((a, b) => b[1] - a[1]).slice(0, 7);
 
-    // Xodimlar bo'yicha
+    // Xodimlar bo'yicha (summa + cheklar soni)
     const byEmp = {};
-    sales.forEach(s => byEmp[s.xodim] = (byEmp[s.xodim] || 0) + s.jami);
-    const empStats = Object.entries(byEmp).sort((a, b) => b[1] - a[1]);
+    sales.forEach(s => {
+      const e = byEmp[s.xodim] = byEmp[s.xodim] || { sum: 0, n: 0 };
+      e.sum += s.jami; e.n += 1;
+    });
+    const empStats = Object.entries(byEmp).sort((a, b) => b[1].sum - a[1].sum);
 
     // Kunlik dinamika (grafik uchun)
     const daily = dailySeries(sales, period);
+    const PAY = { naqd: ['💵', 'Naqd'], karta: ['💳', 'Karta'], otkazma: ['📲', "O'tkazma"] };
 
     document.getElementById('rep-body').innerHTML = `
       <div class="stats">
         <div class="stat-card"><div class="label">Jami savdo</div><div class="value">${money(jami)}</div></div>
-        <div class="stat-card"><div class="label">Cheklar soni</div><div class="value">${soni}</div></div>
+        <div class="stat-card"><div class="label">Foyda</div><div class="value">${money(foyda)}</div></div>
+        <div class="stat-card"><div class="label">Cheklar</div><div class="value">${soni}</div></div>
         <div class="stat-card"><div class="label">O'rtacha chek</div><div class="value">${money(ortacha)}</div></div>
-        <div class="stat-card"><div class="label">💵/💳/📲</div>
-          <div class="value" style="font-size:14px">
-            ${money(byPay.naqd)}<br>${money(byPay.karta)}<br>${money(byPay.otkazma)}</div></div>
       </div>
+
+      <div class="cart" style="margin-bottom:16px">
+        <div class="cart-head">💳 To'lov usullari</div>
+        <div style="padding:14px;display:flex;flex-direction:column;gap:13px">
+          ${['naqd', 'karta', 'otkazma'].map(k => `
+            <div>
+              <div class="row-between" style="margin-bottom:5px">
+                <span style="font-weight:600">${PAY[k][0]} ${PAY[k][1]}</span>
+                <b>${money(byPay[k])}</b>
+              </div>
+              <div style="height:7px;border-radius:6px;background:var(--fill);overflow:hidden">
+                <div style="height:100%;width:${Math.round(byPay[k] / payMax * 100)}%;background:var(--accent-grad)"></div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      ${refunds.length ? `
+      <div class="cart" style="margin-bottom:16px;border-color:var(--danger)">
+        <div class="cart-head">↩️ Qaytarishlar</div>
+        <div class="row-between" style="padding:14px">
+          <span class="muted">${refunds.length} ta chek qaytarildi</span>
+          <b style="color:var(--danger)">−${money(refundSum)}</b>
+        </div>
+      </div>` : ''}
 
       <div class="cart" style="margin-bottom:16px">
         <div class="cart-head">📈 Savdo dinamikasi</div>
@@ -83,7 +120,7 @@ const Hisobotlar = (() => {
       </div>
 
       <div class="cart" style="margin-bottom:16px">
-        <div class="cart-head">🏆 Eng ko'p sotilgan xizmatlar</div>
+        <div class="cart-head">🏆 Eng ko'p sotilganlar</div>
         ${topServices.length ? topServices.map(([nom, qty], i) => `
           <div class="cart-item"><span>${['🥇','🥈','🥉'][i] || '▫️'}</span>
             <span class="ci-name">${esc(nom)}</span><span class="ci-price">${qty} dona</span></div>`).join('')
@@ -91,23 +128,31 @@ const Hisobotlar = (() => {
       </div>
 
       <div class="cart" style="margin-bottom:16px">
-        <div class="cart-head">👥 Xodimlar statistikasi</div>
-        ${empStats.length ? empStats.map(([nom, sum]) => `
+        <div class="cart-head">👥 Xodimlar</div>
+        ${empStats.length ? empStats.map(([nom, e]) => `
           <div class="cart-item"><span>👤</span>
-            <span class="ci-name">${esc(nom)}</span><span class="ci-price">${money(sum)}</span></div>`).join('')
+            <span class="ci-name">${esc(nom)} <span class="muted" style="font-weight:400">• ${e.n} chek</span></span>
+            <span class="ci-price">${money(e.sum)}</span></div>`).join('')
           : '<p class="empty">Ma\'lumot yo\'q</p>'}
       </div>
 
       <div class="cart">
-        <div class="cart-head">🧾 Sotuvlar tarixi (qaytarish)</div>
-        ${[...allSales].sort((a, b) => b.ts - a.ts).slice(0, 50).map(s => `
-          <div class="cart-item" style="${s.qaytarilgan ? 'opacity:.5' : ''}">
-            <span>${s.qaytarilgan ? '↩️' : '🧾'}</span>
-            <span class="ci-name">#${s.chek_raqami} • ${esc(s.vaqt)}${s.mijoz ? ' • ' + esc(s.mijoz) : ''}
-              ${s.qaytarilgan ? '<b>(qaytarilgan)</b>' : ''}</span>
+        <div class="cart-head">🧾 Sotuvlar tarixi</div>
+        ${allSales.length ? [...allSales].sort((a, b) => b.ts - a.ts).slice(0, 60).map(s => {
+          const items = itemsOf(s).map(it => esc(it.nom) + ((it.miqdor || 1) > 1 ? ` ×${it.miqdor}` : '')).join(', ');
+          const f = foydaOf(s);
+          const pi = (PAY[s.tolov_usuli] || ['🧾'])[0];
+          return `
+          <div class="cart-item" style="${s.qaytarilgan ? 'opacity:.55' : ''}">
+            <span>${s.qaytarilgan ? '↩️' : pi}</span>
+            <div class="ci-name" style="flex:1;min-width:0">
+              <div style="font-weight:700">#${s.chek_raqami} ${s.qaytarilgan ? '<span style="color:var(--danger)">(qaytarilgan)</span>' : ''}</div>
+              <div class="muted" style="font-size:12px;white-space:normal">${esc(s.sana || '')} ${esc(s.vaqt || '')}${s.mijoz ? ' • ' + esc(s.mijoz) : ''}${items ? ' • ' + items : ''}${f ? ` • foyda ${money(f)}` : ''}</div>
+            </div>
             <span class="ci-price">${money(s.jami)}</span>
             ${s.qaytarilgan ? '' : `<button class="icon-btn" title="Qaytarish" onclick="Hisobotlar.refund(${s.chek_raqami})">↩️</button>`}
-          </div>`).join('') || '<p class="empty">Sotuvlar yo\'q</p>'}
+          </div>`;
+        }).join('') : '<p class="empty">Sotuvlar yo\'q</p>'}
       </div>
     `;
 
@@ -169,7 +214,7 @@ const Hisobotlar = (() => {
     if (chartRef) chartRef.destroy();
     chartRef = new Chart(canvas, {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Savdo', data, backgroundColor: '#3949ab', borderRadius: 6 }] },
+      data: { labels, datasets: [{ label: 'Savdo', data, backgroundColor: '#6366f1', borderRadius: 8, maxBarThickness: 48 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },

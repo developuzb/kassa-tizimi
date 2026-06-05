@@ -5,7 +5,7 @@
    (ular har doim tarmoqqa boradi, offline bo'lsa navbatga tushadi).
    ============================================================ */
 
-const CACHE = 'kassa-v5';
+const CACHE = 'kassa-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -42,10 +42,10 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// So'rovlar — shu domendagi GET'lar uchun "network-first":
-// online bo'lsa HAR DOIM eng yangi kodni tarmoqdan olamiz (va keshni yangilaymiz),
-// offline bo'lsa keshdan beramiz. Shu sabab kod yangilanishi barcha qurilmaga
-// darrov yetadi (eski kesh muammosi yo'q).
+// So'rovlar — shu domendagi GET'lar uchun "network-first + 1.2s timeout":
+// • tarmoq tez javob bersa — eng yangi kod (va kesh yangilanadi) -> stale kod yo'q
+// • tarmoq sekin bo'lsa (1.2s) yoki offline — keshdan DARROV beramiz (tez yuklanish),
+//   tarmoq javobi kelganda kesh fon rejimida yangilanadi
 // Tashqi so'rovlar (Firebase SDK, Realtime Database, Sheets) aralashmaymiz.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -53,13 +53,22 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // tashqi — to'g'ridan-to'g'ri tarmoqqa
 
-  e.respondWith(
-    fetch(req).then(res => {
+  e.respondWith((async () => {
+    const cached = await caches.match(req);
+    const network = fetch(req).then(res => {
       if (res && res.status === 200) {
         const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
+        caches.open(CACHE).then(c => c.put(req, copy));   // keshni yangilaymiz
       }
       return res;
-    }).catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
-  );
+    });
+    if (!cached) {
+      // kesh yo'q (birinchi yuklash) — tarmoqni kutamiz
+      try { return await network; } catch (_) { return caches.match('./index.html'); }
+    }
+    // kesh bor — tarmoqni 1.2s kutamiz, ulgurmasa keshdan beramiz
+    const timeout = new Promise(r => setTimeout(() => r(null), 1200));
+    const winner = await Promise.race([network.catch(() => null), timeout]);
+    return winner || cached;
+  })());
 });
