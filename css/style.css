@@ -289,6 +289,7 @@ body {
 .pin-btn.active { opacity: 1; filter: none; background: var(--accent-soft); }
 .service-card.pinned { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow-card); }
 .list-item.pinned { border-color: var(--primary); }
+.list-item.tugagan { opacity: .72; border-style: dashed; }
 .icon-btn.pin-tog { opacity: .3; filter: grayscale(1); }
 .icon-btn.pin-tog.active { opacity: 1; filter: none; }
 

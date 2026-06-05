@@ -7,20 +7,28 @@
 const Inventar = (() => {
   function money(n) { return Number(n).toLocaleString('uz-UZ') + ' ' + esc(Storage.getSettings().valyuta); }
 
+  // Tovar "tugagan" (arxivga o'tadigan) — qoldig'i kuzatilib, 0 ga yetgan
+  const isTugagan = s => s.qoldiq != null && s.qoldiq <= 0;
+
+  let archiveMode = false;   // false = faol tovarlar, true = arxiv (tugaganlar)
+
   function render() {
     const root = document.getElementById('view-ombor');
-    const services = Storage.getServices();
+    const arxivSoni = Storage.getServices().filter(isTugagan).length;
 
     root.innerHTML = `
       <div class="row-between">
-        <h2 class="section-title">📦 Ombor / Xizmatlar</h2>
+        <h2 class="section-title">${archiveMode ? '🗄 Arxiv — tugaganlar' : '📦 Ombor / Xizmatlar'}</h2>
       </div>
       <div class="toolbar">
         <input class="input" id="omb-search" placeholder="🔎 Qidirish..." />
-        <button class="btn btn-primary" style="width:auto" onclick="Inventar.form()">➕ Yangi</button>
-        <button class="btn btn-ghost" style="width:auto" onclick="Inventar.excelImport()">📥 Excel</button>
-        <button class="btn btn-ghost" style="width:auto" onclick="Inventar.importFromSheets()">⬇️ Sheets</button>
-        <button class="btn btn-ghost" style="width:auto" onclick="Yorliq.open()">🏷️ Yorliq</button>
+        ${archiveMode
+          ? `<button class="btn btn-primary" style="width:auto" onclick="Inventar.toggleArchive()">← Faol tovarlar</button>`
+          : `<button class="btn btn-primary" style="width:auto" onclick="Inventar.form()">➕ Yangi</button>
+             <button class="btn btn-ghost" style="width:auto" onclick="Inventar.excelImport()">📥 Excel</button>
+             <button class="btn btn-ghost" style="width:auto" onclick="Inventar.importFromSheets()">⬇️ Sheets</button>
+             <button class="btn btn-ghost" style="width:auto" onclick="Yorliq.open()">🏷️ Yorliq</button>
+             <button class="btn btn-ghost" style="width:auto" onclick="Inventar.toggleArchive()">🗄 Arxiv${arxivSoni ? ` (${arxivSoni})` : ''}</button>`}
       </div>
       <div id="omb-list"></div>
     `;
@@ -28,13 +36,22 @@ const Inventar = (() => {
     renderList();
   }
 
+  function toggleArchive() { archiveMode = !archiveMode; render(); }
+
   function renderList() {
     const q = (document.getElementById('omb-search')?.value || '').toLowerCase();
-    let list = Storage.getServices().filter(s => s.nom.toLowerCase().includes(q));
+    let list = Storage.getServices()
+      .filter(s => archiveMode ? isTugagan(s) : !isTugagan(s))   // arxiv yoki faol
+      .filter(s => s.nom.toLowerCase().includes(q));
     // Pinlanganlar ro'yxat tepasida
     list = list.slice().sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
     const el = document.getElementById('omb-list');
-    if (list.length === 0) { el.innerHTML = `<p class="empty">Hech narsa yo'q. "Yangi" tugmasi orqali qo'shing.</p>`; return; }
+    if (list.length === 0) {
+      el.innerHTML = archiveMode
+        ? `<p class="empty">Arxiv bo'sh — tugagan tovar yo'q. 🎉</p>`
+        : `<p class="empty">Hech narsa yo'q. "Yangi" tugmasi orqali qo'shing.</p>`;
+      return;
+    }
 
     el.innerHTML = list.map(s => {
       // Foyda/margin FAQAT statik "Servis" kategoriyasida ko'rsatiladi (Paynet emas)
@@ -45,19 +62,23 @@ const Inventar = (() => {
         : s.kategoriya === 'Servis' ? '🛠 Narx/foyda sotuvda'
         : s.ochiqNarx ? 'Narx: sotuvda'
         : money(s.narx);
+      const tugagan = isTugagan(s);
       return `
-      <div class="list-item ${s.pin ? 'pinned' : ''}">
+      <div class="list-item ${s.pin ? 'pinned' : ''}${tugagan ? ' tugagan' : ''}">
         <div>
           <div class="li-main">${s.pin ? '📌 ' : ''}${esc(s.emoji) || '🏷️'} ${esc(s.nom)}
-            <span class="badge ${s.aktiv ? 'on' : 'off'}">${s.aktiv ? 'Aktiv' : 'O\'chiq'}</span>
+            ${tugagan ? '<span class="badge off">Tugagan</span>'
+              : `<span class="badge ${s.aktiv ? 'on' : 'off'}">${s.aktiv ? 'Aktiv' : 'O\'chiq'}</span>`}
           </div>
           <div class="li-sub">${narxText} • ${esc(s.kategoriya)}${
             s.qoldiq != null ? ` • Qoldiq: ${s.qoldiq}` : ''}${s.shtrix ? ` • #${esc(s.shtrix)}` : ''}${
             foyda != null ? ` • Foyda: ${money(foyda)} (${margin}%)` : ''}</div>
         </div>
         <div>
-          <button class="icon-btn pin-tog ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Inventar.togglePin('${s.id}')">📌</button>
-          <button class="icon-btn" title="Yorliq chop etish" onclick="Yorliq.open('${s.id}')">🏷️</button>
+          ${tugagan
+            ? `<button class="icon-btn" title="Qoldiqni to'ldirib tiklash" onclick="Inventar.restock('${s.id}')">♻️</button>`
+            : `<button class="icon-btn pin-tog ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Inventar.togglePin('${s.id}')">📌</button>
+               <button class="icon-btn" title="Yorliq chop etish" onclick="Yorliq.open('${s.id}')">🏷️</button>`}
           <button class="icon-btn" title="Tahrirlash" onclick="Inventar.form('${s.id}')">✏️</button>
           <button class="icon-btn" title="O'chirish" onclick="Inventar.remove('${s.id}')">🗑️</button>
         </div>
@@ -169,6 +190,31 @@ const Inventar = (() => {
     Storage.updateService(id, { pin: !s.pin });
     renderList();
     Sheets.scheduleSync();
+  }
+
+  /* ---------- Arxivdan tiklash: qoldiqni to'ldirish (♻️) ---------- */
+  function restock(id) {
+    const s = Storage.getServices().find(x => x.id === id);
+    if (!s) return;
+    Modal.open(`
+      <h3>♻️ Qoldiqni to'ldirish</h3>
+      <p style="margin-bottom:12px"><b>${esc(s.nom)}</b> — hozir qoldiq: ${s.qoldiq ?? 0}</p>
+      <div class="field"><label>Yangi qoldiq (dona)</label>
+        <input class="input" id="rs-qty" type="number" inputmode="numeric" min="1" value="10" autofocus></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="Modal.close()">Bekor</button>
+        <button class="btn btn-primary" id="rs-save">💾 Tiklash</button>
+      </div>
+    `);
+    document.getElementById('rs-save').onclick = () => {
+      const qty = Number(document.getElementById('rs-qty').value);
+      if (!qty || qty <= 0) { Toast.show('Musbat son kiriting', 'error'); return; }
+      Storage.updateService(id, { qoldiq: qty, aktiv: true });
+      Modal.close();
+      render();   // tiklangach tovar faol ro'yxatga qaytadi
+      Sheets.scheduleSync();
+      Toast.show(`"${s.nom}" tiklandi (${qty} dona) ✓`, 'success');
+    };
   }
 
   function remove(id) {
@@ -392,5 +438,5 @@ const Inventar = (() => {
     });
   }
 
-  return { render, form, remove, importFromSheets, togglePin, excelImport, downloadTemplate };
+  return { render, form, remove, importFromSheets, togglePin, excelImport, downloadTemplate, toggleArchive, restock };
 })();

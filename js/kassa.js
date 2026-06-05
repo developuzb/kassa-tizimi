@@ -99,6 +99,8 @@ const Kassa = (() => {
     const q = (document.getElementById('kassa-search')?.value || '').toLowerCase();
     let services = Storage.getServices()
       .filter(s => s.aktiv)
+      // tugagan (qoldig'i 0) tovarlar ko'rsatilmaydi — ular Ombor arxiviga o'tadi
+      .filter(s => !(s.qoldiq != null && s.qoldiq <= 0))
       // tab filtri: hammasi / pinlangan / tanlangan kategoriya
       .filter(s => activeCat === '' ? true : activeCat === '__pin__' ? s.pin : s.kategoriya === activeCat)
       .filter(s => s.nom.toLowerCase().includes(q) || (s.shtrix || '').includes(q));
