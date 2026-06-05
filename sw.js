@@ -5,7 +5,7 @@
    (ular har doim tarmoqqa boradi, offline bo'lsa navbatga tushadi).
    ============================================================ */
 
-const CACHE = 'kassa-v7';
+const CACHE = 'kassa-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -27,6 +27,7 @@ const ASSETS = [
   './js/firebase-sync.js',
   './js/vendor/chart.umd.min.js',
   './js/vendor/jsbarcode.min.js',
+  './js/vendor/xlsx.full.min.js',
 ];
 
 // O'rnatish — qobiqni keshlash

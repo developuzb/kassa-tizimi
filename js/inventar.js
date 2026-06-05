@@ -18,7 +18,8 @@ const Inventar = (() => {
       <div class="toolbar">
         <input class="input" id="omb-search" placeholder="🔎 Qidirish..." />
         <button class="btn btn-primary" style="width:auto" onclick="Inventar.form()">➕ Yangi</button>
-        <button class="btn btn-ghost" style="width:auto" onclick="Inventar.importFromSheets()">⬇️ Sheets import</button>
+        <button class="btn btn-ghost" style="width:auto" onclick="Inventar.excelImport()">📥 Excel</button>
+        <button class="btn btn-ghost" style="width:auto" onclick="Inventar.importFromSheets()">⬇️ Sheets</button>
         <button class="btn btn-ghost" style="width:auto" onclick="Yorliq.open()">🏷️ Yorliq</button>
       </div>
       <div id="omb-list"></div>
@@ -180,6 +181,198 @@ const Inventar = (() => {
     });
   }
 
+  /* ============================================================
+     EXCEL (.xlsx / .csv) IMPORT + NAMUNA
+     ============================================================ */
+
+  // Ustun sarlavhalarini moslash (uz/ru/en variantlari)
+  const COL_MAP = {
+    nom:       ['nom', 'nomi', 'mahsulot', 'tovar', 'name', 'наименование', 'товар', 'название'],
+    narx:      ['narx', 'narxi', 'price', 'цена', 'narx somda', "narx so'm"],
+    kategoriya:['kategoriya', 'kat', 'category', 'категория', 'tur', 'turi', 'guruh'],
+    qoldiq:    ['qoldiq', 'qoldiq soni', 'soni', 'stock', 'ostatok', 'остаток', 'количество', 'miqdor'],
+    shtrix:    ['shtrix', 'shtrix-kod', 'shtrixkod', 'barcode', 'штрих', 'штрихкод', 'штрих-код', 'kod'],
+    emoji:     ['emoji', 'ikonka', 'belgi'],
+    aktiv:     ['holat', 'aktiv', 'status', 'active', 'статус', 'holati'],
+  };
+
+  function normHeader(h) { return String(h || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+  function mapHeaders(headerRow) {
+    const idx = {};
+    headerRow.forEach((h, i) => {
+      const n = normHeader(h);
+      for (const field in COL_MAP) {
+        if (COL_MAP[field].includes(n)) { idx[field] = i; break; }
+      }
+    });
+    return idx;
+  }
+
+  // "12 000 so'm", "12,000", 12000 -> 12000
+  function parseNum(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).replace(/[^\d.,-]/g, '').replace(/\s/g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? null : Math.round(n);
+  }
+
+  function parseAktiv(v) {
+    const s = String(v ?? '').trim().toLowerCase();
+    if (['', 'aktiv', 'faol', 'active', '1', 'true', 'ha', 'да', 'on', 'bor'].includes(s)) return true;
+    if (["o'chiq", 'ochiq', 'off', '0', 'false', "yo'q", 'yoq', 'нет', 'нет '].includes(s)) return false;
+    return true; // standart — aktiv
+  }
+
+  /* ---------- Namuna .xlsx yuklab olish ---------- */
+  function downloadTemplate() {
+    if (typeof XLSX === 'undefined') { Toast.show('Excel kutubxonasi yuklanmadi', 'error'); return; }
+    const headers = ['Nomi', 'Narx', 'Kategoriya', 'Qoldiq', 'Shtrix', 'Emoji', 'Holat'];
+    const rows = [
+      ['Coca-Cola 1L', 12000, 'Ichimlik', 24, '', '🥤', 'Aktiv'],
+      ['Non', 3000, 'Oziq-ovqat', 30, '', '🍞', 'Aktiv'],
+      ['Ucell 70 000', 70000, 'Ucell', '', '', '📱', 'Aktiv'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
+    XLSX.writeFile(wb, 'mahsulotlar-namuna.xlsx');
+    Toast.show('Namuna yuklab olindi 📄', 'success');
+  }
+
+  /* ---------- Import oynasi ---------- */
+  function excelImport() {
+    if (typeof XLSX === 'undefined') { Toast.show('Excel kutubxonasi yuklanmadi', 'error'); return; }
+    Modal.open(`
+      <h3>📥 Excel orqali import</h3>
+      <p class="muted" style="font-size:13px;margin-bottom:12px">
+        Excel (.xlsx) yoki .csv fayldan tovarlarni omborga qo'shing. Ustunlar:
+        <b>Nomi, Narx, Kategoriya, Qoldiq, Shtrix, Emoji, Holat</b>. Faqat <b>Nomi</b> va <b>Narx</b> majburiy.
+      </p>
+      <button class="btn btn-ghost" style="margin-bottom:12px" onclick="Inventar.downloadTemplate()">📄 Namuna faylni yuklab olish</button>
+
+      <div class="field"><label>Faylni tanlang (.xlsx, .xls, .csv)</label>
+        <input class="input" id="xl-file" type="file" accept=".xlsx,.xls,.csv" style="padding:9px"></div>
+
+      <div id="xl-preview"></div>
+    `);
+    document.getElementById('xl-file').onchange = onFile;
+  }
+
+  // Tahlil natijasini saqlash (Tasdiqlash uchun)
+  let _parsed = null;
+
+  function onFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+        analyze(rows);
+      } catch (err) {
+        document.getElementById('xl-preview').innerHTML =
+          `<p class="empty" style="color:var(--danger)">Faylni o'qib bo'lmadi: ${esc(err.message)}</p>`;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Qatorlarni tahlil qilib, qo'shiladigan/yangilanadigan/xato sonlarini ko'rsatadi
+  function analyze(rows) {
+    const box = document.getElementById('xl-preview');
+    if (!rows || rows.length < 2) {
+      box.innerHTML = `<p class="empty" style="color:var(--danger)">Faylda ma'lumot topilmadi (sarlavha + kamida 1 qator kerak).</p>`;
+      return;
+    }
+    const idx = mapHeaders(rows[0]);
+    if (idx.nom == null || idx.narx == null) {
+      box.innerHTML = `<p class="empty" style="color:var(--danger)">"Nomi" va "Narx" ustunlari topilmadi. Namuna faylga qarang.</p>`;
+      return;
+    }
+
+    const existing = Storage.getServices();
+    const byShtrix = new Map(existing.filter(s => s.shtrix).map(s => [String(s.shtrix), s]));
+    const byNom = new Map(existing.map(s => [s.nom.trim().toLowerCase(), s]));
+
+    const items = [];   // { data, match, ok, err }
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row || row.every(c => c === '' || c == null)) continue;
+      const nom = String(row[idx.nom] ?? '').trim();
+      const narx = parseNum(row[idx.narx]);
+      const shtrix = idx.shtrix != null ? String(row[idx.shtrix] ?? '').trim() : '';
+      const qoldiqRaw = idx.qoldiq != null ? row[idx.qoldiq] : '';
+      const qoldiq = (qoldiqRaw === '' || qoldiqRaw == null) ? null : parseNum(qoldiqRaw);
+
+      let err = '';
+      if (!nom) err = 'Nomi yo\'q';
+      else if (narx == null || narx < 0) err = 'Narx xato';
+
+      const data = {
+        nom, narx: narx || 0,
+        kategoriya: (idx.kategoriya != null ? String(row[idx.kategoriya] ?? '').trim() : '') || 'Boshqa',
+        ochiqNarx: false, isPaynet: false, tanNarx: null,
+        shtrix,
+        emoji: (idx.emoji != null ? String(row[idx.emoji] ?? '').trim() : '') || '🏷️',
+        qoldiq,
+        aktiv: idx.aktiv != null ? parseAktiv(row[idx.aktiv]) : true,
+      };
+      // Mavjudini topish: avval shtrix, keyin nom bo'yicha
+      const match = (shtrix && byShtrix.get(shtrix)) || byNom.get(nom.toLowerCase()) || null;
+      items.push({ data, match, ok: !err, err });
+    }
+
+    _parsed = items.filter(i => i.ok);
+    const yangi = _parsed.filter(i => !i.match).length;
+    const yangilanadi = _parsed.filter(i => i.match).length;
+    const xato = items.filter(i => !i.ok);
+
+    const sample = items.slice(0, 8).map(i => `
+      <div class="cart-item" style="${i.ok ? '' : 'opacity:.6'}">
+        <span>${i.ok ? (i.match ? '♻️' : '🆕') : '⚠️'}</span>
+        <span class="ci-name">${esc(i.data.nom || '—')}
+          <span class="muted" style="font-weight:400">• ${esc(i.data.kategoriya)}</span></span>
+        <span class="ci-price">${i.ok ? money(i.data.narx) : esc(i.err)}</span>
+      </div>`).join('');
+
+    box.innerHTML = `
+      <div class="stats" style="margin:6px 0 12px">
+        <div class="stat-card"><div class="label">🆕 Yangi</div><div class="value">${yangi}</div></div>
+        <div class="stat-card"><div class="label">♻️ Yangilanadi</div><div class="value">${yangilanadi}</div></div>
+        <div class="stat-card"><div class="label">⚠️ Xato</div><div class="value">${xato.length}</div></div>
+      </div>
+      <div class="cart" style="margin-bottom:12px">
+        <div class="cart-head">Ko'rib chiqish (dastlabki ${Math.min(8, items.length)})</div>
+        ${sample}
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="Modal.close()">Bekor</button>
+        <button class="btn btn-primary" id="xl-apply" ${_parsed.length ? '' : 'disabled'}>
+          ✅ ${_parsed.length} ta tovarni import qilish</button>
+      </div>`;
+    const applyBtn = document.getElementById('xl-apply');
+    if (applyBtn) applyBtn.onclick = applyImport;
+  }
+
+  function applyImport() {
+    if (!_parsed || !_parsed.length) return;
+    let added = 0, updated = 0;
+    _parsed.forEach(i => {
+      if (i.match) { Storage.updateService(i.match.id, i.data); updated++; }
+      else { Storage.addService(i.data); added++; }
+    });
+    _parsed = null;
+    Modal.close();
+    render();
+    Sheets.scheduleSync();
+    Toast.show(`Import: ${added} yangi, ${updated} yangilandi ✓`, 'success');
+  }
+
   /* ---------- Google Sheets'dan import ---------- */
   async function importFromSheets() {
     if (!Sheets.isConfigured()) {
@@ -199,5 +392,5 @@ const Inventar = (() => {
     });
   }
 
-  return { render, form, remove, importFromSheets, togglePin };
+  return { render, form, remove, importFromSheets, togglePin, excelImport, downloadTemplate };
 })();
