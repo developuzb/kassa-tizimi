@@ -19,6 +19,7 @@ const Inventar = (() => {
         <input class="input" id="omb-search" placeholder="🔎 Qidirish..." />
         <button class="btn btn-primary" style="width:auto" onclick="Inventar.form()">➕ Yangi</button>
         <button class="btn btn-ghost" style="width:auto" onclick="Inventar.importFromSheets()">⬇️ Sheets import</button>
+        <button class="btn btn-ghost" style="width:auto" onclick="Yorliq.open()">🏷️ Yorliq</button>
       </div>
       <div id="omb-list"></div>
     `;
@@ -55,6 +56,7 @@ const Inventar = (() => {
         </div>
         <div>
           <button class="icon-btn pin-tog ${s.pin ? 'active' : ''}" title="Pinga qo'yish" onclick="Inventar.togglePin('${s.id}')">📌</button>
+          <button class="icon-btn" title="Yorliq chop etish" onclick="Yorliq.open('${s.id}')">🏷️</button>
           <button class="icon-btn" title="Tahrirlash" onclick="Inventar.form('${s.id}')">✏️</button>
           <button class="icon-btn" title="O'chirish" onclick="Inventar.remove('${s.id}')">🗑️</button>
         </div>
