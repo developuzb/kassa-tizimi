@@ -30,10 +30,34 @@ const Inventar = (() => {
              <button class="btn btn-ghost" style="width:auto" onclick="Yorliq.open()">🏷️ Yorliq</button>
              <button class="btn btn-ghost" style="width:auto" onclick="Inventar.toggleArchive()">🗄 Arxiv${arxivSoni ? ` (${arxivSoni})` : ''}</button>`}
       </div>
+      ${archiveMode ? '' : renderStats()}
       <div id="omb-list"></div>
     `;
     document.getElementById('omb-search').oninput = renderList;
     renderList();
+  }
+
+  // Ombor qiymati: qoldiqli tovarlar bo'yicha sotuv qiymati, tan narx qiymati, taxminiy foyda
+  function renderStats() {
+    let sotuvVal = 0, tanVal = 0, foydaVal = 0, dona = 0, turlar = 0, foydaNoma = 0;
+    Storage.getServices().forEach(s => {
+      if (s.qoldiq == null || s.qoldiq <= 0) return;   // faqat qoldiqdagi tovarlar
+      const q = s.qoldiq;
+      dona += q; turlar++;
+      sotuvVal += q * (s.narx || 0);
+      if (s.tanNarx != null) { tanVal += q * s.tanNarx; foydaVal += q * ((s.narx || 0) - s.tanNarx); }
+      else foydaNoma++;   // tan narx kiritilmagan tovarlar soni
+    });
+    if (turlar === 0) return '';
+    const note = foydaNoma ? `<div class="muted" style="font-size:12px;margin:-4px 0 12px;padding:0 2px">
+      ⚠️ ${foydaNoma} ta tovarda tan narx kiritilmagan — ular foyda/tan narx hisobiga kirmaydi.</div>` : '';
+    return `
+      <div class="stats" style="margin-bottom:10px">
+        <div class="stat-card"><div class="label">💰 Tovar qiymati (sotuv)</div><div class="value">${money(sotuvVal)}</div></div>
+        <div class="stat-card"><div class="label">🏷 Tan narxda qiymati</div><div class="value">${money(tanVal)}</div></div>
+        <div class="stat-card"><div class="label">📈 Taxminiy foyda</div><div class="value">${money(foydaVal)}</div></div>
+        <div class="stat-card"><div class="label">📦 Qoldiq (${turlar} tur)</div><div class="value">${dona} dona</div></div>
+      </div>${note}`;
   }
 
   function toggleArchive() { archiveMode = !archiveMode; render(); }
@@ -54,9 +78,8 @@ const Inventar = (() => {
     }
 
     el.innerHTML = list.map(s => {
-      // Foyda/margin FAQAT statik "Servis" kategoriyasida ko'rsatiladi (Paynet emas)
-      const servis = s.kategoriya === 'Servis' && !s.isPaynet;
-      const foyda = (servis && s.tanNarx != null) ? (s.narx - s.tanNarx) : null;
+      // Foyda/margin — tan narx kiritilgan oddiy tovarlarda (Servis/Paynet sotuvda)
+      const foyda = (s.tanNarx != null && s.narx) ? (s.narx - s.tanNarx) : null;
       const margin = (foyda != null && s.narx) ? Math.round(foyda / s.narx * 100) : null;
       const narxText = s.isPaynet ? '💸 Tan + xizmat narxi (sotuvda)'
         : s.kategoriya === 'Servis' ? '🛠 Narx/foyda sotuvda'
@@ -106,8 +129,11 @@ const Inventar = (() => {
       <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px">
         <input type="checkbox" id="f-ochiq" ${s?.ochiqNarx && !s?.isPaynet ? 'checked' : ''} style="width:auto"> Narx oldindan belgilanmagan (sotuvda so'raladi)</label>
 
-      <div class="field" id="f-narx-wrap"><label>Narxi (${esc(Storage.getSettings().valyuta)}) *</label>
+      <div class="field" id="f-narx-wrap"><label>Sotuv narxi (${esc(Storage.getSettings().valyuta)}) *</label>
         <input class="input" id="f-narx" type="number" inputmode="numeric" value="${s?.narx ?? ''}" placeholder="40000"></div>
+
+      <div class="field" id="f-tannarx-wrap"><label>Tan narx (ixtiyoriy — foyda hisobi uchun)</label>
+        <input class="input" id="f-tannarx" type="number" inputmode="numeric" value="${s?.tanNarx ?? ''}" placeholder="masalan: 30000"></div>
 
       <!-- "Servis": narx, tan narx va foyda SOTUV PAYTIDA kiritiladi (katalogda emas) -->
       <div id="f-servis-note" class="profit-box" style="display:none;background:var(--accent-soft);color:var(--primary)">
@@ -132,6 +158,7 @@ const Inventar = (() => {
     const katEl = document.getElementById('f-kat');
     const narxEl = document.getElementById('f-narx');
     const narxWrap = document.getElementById('f-narx-wrap');
+    const tanWrap = document.getElementById('f-tannarx-wrap');
     const servisNote = document.getElementById('f-servis-note');
     const ochiqEl = document.getElementById('f-ochiq');
     const paynetEl = document.getElementById('f-paynet');
@@ -140,7 +167,9 @@ const Inventar = (() => {
       const isPaynet = paynetEl.checked;
       const isServis = katEl.value.trim().toLowerCase() === 'servis';
       // Servis ham, Paynet ham — narx (va tan narx/foyda) SOTUV PAYTIDA kiritiladi
-      narxWrap.style.display = (isPaynet || isServis || ochiqEl.checked) ? 'none' : 'block';
+      const atSale = isPaynet || isServis || ochiqEl.checked;
+      narxWrap.style.display = atSale ? 'none' : 'block';
+      tanWrap.style.display = atSale ? 'none' : 'block';   // tan narx faqat oddiy tovarda
       servisNote.style.display = (isServis && !isPaynet) ? 'block' : 'none';
       // Paynet tanlansa ochiqNarx avtomatik o'chiriladi (bir-birini istisno qiladi)
       if (isPaynet) ochiqEl.checked = false;
@@ -163,12 +192,14 @@ const Inventar = (() => {
       if (!nom) { Toast.show('Nomini kiriting', 'error'); return; }
       if (!narxAtSale && (!narx || narx < 0)) { Toast.show('Narx kiriting yoki "narx belgilanmagan"ni belgilang', 'error'); return; }
       const qoldiqRaw = document.getElementById('f-qoldiq').value;
+      const tanRaw = document.getElementById('f-tannarx').value;
       const data = {
         nom, narx,
         kategoriya,
         ochiqNarx,
         isPaynet,
-        tanNarx: null,                       // tan narx/foyda endi sotuv paytida kiritiladi
+        // Oddiy tovarda tan narx (foyda hisobi uchun); Servis/Paynet'da sotuv paytida
+        tanNarx: narxAtSale ? null : (tanRaw === '' ? null : Number(tanRaw)),
         shtrix: document.getElementById('f-shtrix').value.trim(),
         emoji: document.getElementById('f-emoji').value.trim() || '🏷️',
         qoldiq: qoldiqRaw === '' ? null : Number(qoldiqRaw),
@@ -231,10 +262,33 @@ const Inventar = (() => {
      EXCEL (.xlsx / .csv) IMPORT + NAMUNA
      ============================================================ */
 
+  // SheetJS (XLSX) kerak bo'lganda yuklaydi — agar index.html'dagi skript
+  // (eski kesh/sekin tarmoq sabab) yuklanmagan bo'lsa, shu yerda yuklab olamiz.
+  function ensureXLSX() {
+    return new Promise((resolve, reject) => {
+      if (typeof XLSX !== 'undefined') return resolve();
+      const srcs = [
+        'js/vendor/xlsx.full.min.js',
+        'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+      ];
+      let i = 0;
+      (function tryNext() {
+        if (typeof XLSX !== 'undefined') return resolve();
+        if (i >= srcs.length) return reject(new Error('Excel kutubxonasini yuklab bo\'lmadi (internet kerak bo\'lishi mumkin)'));
+        const sc = document.createElement('script');
+        sc.src = srcs[i++];
+        sc.onload = () => (typeof XLSX !== 'undefined' ? resolve() : tryNext());
+        sc.onerror = tryNext;
+        document.head.appendChild(sc);
+      })();
+    });
+  }
+
   // Ustun sarlavhalarini moslash (uz/ru/en variantlari)
   const COL_MAP = {
     nom:       ['nom', 'nomi', 'mahsulot', 'tovar', 'name', 'наименование', 'товар', 'название'],
-    narx:      ['narx', 'narxi', 'price', 'цена', 'narx somda', "narx so'm"],
+    narx:      ['narx', 'narxi', 'sotuv narxi', 'price', 'цена', 'narx somda', "narx so'm"],
+    tanNarx:   ['tan narx', 'tannarx', 'tan narxi', 'cost', 'себестоимость', 'закуп', 'kelish narxi'],
     kategoriya:['kategoriya', 'kat', 'category', 'категория', 'tur', 'turi', 'guruh'],
     qoldiq:    ['qoldiq', 'qoldiq soni', 'soni', 'stock', 'ostatok', 'остаток', 'количество', 'miqdor'],
     shtrix:    ['shtrix', 'shtrix-kod', 'shtrixkod', 'barcode', 'штрих', 'штрихкод', 'штрих-код', 'kod'],
@@ -272,16 +326,17 @@ const Inventar = (() => {
   }
 
   /* ---------- Namuna .xlsx yuklab olish ---------- */
-  function downloadTemplate() {
-    if (typeof XLSX === 'undefined') { Toast.show('Excel kutubxonasi yuklanmadi', 'error'); return; }
-    const headers = ['Nomi', 'Narx', 'Kategoriya', 'Qoldiq', 'Shtrix', 'Emoji', 'Holat'];
+  async function downloadTemplate() {
+    try { await ensureXLSX(); }
+    catch (e) { Toast.show(e.message, 'error'); return; }
+    const headers = ['Nomi', 'Narx', 'Tan narx', 'Kategoriya', 'Qoldiq', 'Shtrix', 'Emoji', 'Holat'];
     const rows = [
-      ['Coca-Cola 1L', 12000, 'Ichimlik', 24, '', '🥤', 'Aktiv'],
-      ['Non', 3000, 'Oziq-ovqat', 30, '', '🍞', 'Aktiv'],
-      ['Ucell 70 000', 70000, 'Ucell', '', '', '📱', 'Aktiv'],
+      ['Coca-Cola 1L', 12000, 8000, 'Ichimlik', 24, '', '🥤', 'Aktiv'],
+      ['Non', 3000, 2000, 'Oziq-ovqat', 30, '', '🍞', 'Aktiv'],
+      ['Ucell 70 000', 70000, 67000, 'Ucell', '', '', '📱', 'Aktiv'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
     XLSX.writeFile(wb, 'mahsulotlar-namuna.xlsx');
@@ -290,12 +345,11 @@ const Inventar = (() => {
 
   /* ---------- Import oynasi ---------- */
   function excelImport() {
-    if (typeof XLSX === 'undefined') { Toast.show('Excel kutubxonasi yuklanmadi', 'error'); return; }
     Modal.open(`
       <h3>📥 Excel orqali import</h3>
       <p class="muted" style="font-size:13px;margin-bottom:12px">
         Excel (.xlsx) yoki .csv fayldan tovarlarni omborga qo'shing. Ustunlar:
-        <b>Nomi, Narx, Kategoriya, Qoldiq, Shtrix, Emoji, Holat</b>. Faqat <b>Nomi</b> va <b>Narx</b> majburiy.
+        <b>Nomi, Narx, Tan narx, Kategoriya, Qoldiq, Shtrix, Emoji, Holat</b>. Faqat <b>Nomi</b> va <b>Narx</b> majburiy.
       </p>
       <button class="btn btn-ghost" style="margin-bottom:12px" onclick="Inventar.downloadTemplate()">📄 Namuna faylni yuklab olish</button>
 
@@ -304,6 +358,8 @@ const Inventar = (() => {
 
       <div id="xl-preview"></div>
     `);
+    // Kutubxonani oldindan (fon rejimida) yuklab qo'yamiz — fayl tanlanguncha tayyor bo'ladi
+    ensureXLSX().catch(() => {});
     document.getElementById('xl-file').onchange = onFile;
   }
 
@@ -313,19 +369,24 @@ const Inventar = (() => {
   function onFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const wb = XLSX.read(ev.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
-        analyze(rows);
-      } catch (err) {
-        document.getElementById('xl-preview').innerHTML =
-          `<p class="empty" style="color:var(--danger)">Faylni o'qib bo'lmadi: ${esc(err.message)}</p>`;
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    const box = document.getElementById('xl-preview');
+    box.innerHTML = `<p class="muted" style="padding:10px">⏳ O'qilmoqda...</p>`;
+    ensureXLSX().then(() => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const wb = XLSX.read(ev.target.result, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+          analyze(rows);
+        } catch (err) {
+          box.innerHTML = `<p class="empty" style="color:var(--danger)">Faylni o'qib bo'lmadi: ${esc(err.message)}</p>`;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }).catch(err => {
+      box.innerHTML = `<p class="empty" style="color:var(--danger)">${esc(err.message)}</p>`;
+    });
   }
 
   // Qatorlarni tahlil qilib, qo'shiladigan/yangilanadigan/xato sonlarini ko'rsatadi
@@ -362,12 +423,14 @@ const Inventar = (() => {
       const data = {
         nom, narx: narx || 0,
         kategoriya: (idx.kategoriya != null ? String(row[idx.kategoriya] ?? '').trim() : '') || 'Boshqa',
-        ochiqNarx: false, isPaynet: false, tanNarx: null,
+        ochiqNarx: false, isPaynet: false,
         shtrix,
         emoji: (idx.emoji != null ? String(row[idx.emoji] ?? '').trim() : '') || '🏷️',
         qoldiq,
         aktiv: idx.aktiv != null ? parseAktiv(row[idx.aktiv]) : true,
       };
+      // Tan narx faqat ustun mavjud bo'lsa yoziladi (aks holda eski qiymat saqlanadi)
+      if (idx.tanNarx != null) data.tanNarx = parseNum(row[idx.tanNarx]);
       // Mavjudini topish: avval shtrix, keyin nom bo'yicha
       const match = (shtrix && byShtrix.get(shtrix)) || byNom.get(nom.toLowerCase()) || null;
       items.push({ data, match, ok: !err, err });
