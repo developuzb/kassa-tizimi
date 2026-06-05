@@ -27,6 +27,13 @@ const Yorliq = (() => {
   // Faqat raqamli formatlar uchun kerakli uzunlik
   const DIGITS_NEEDED = { EAN13: 12, EAN8: 7, UPC: 11, ITF14: 13 };
 
+  // Marketing o'lchamlari (3 ta): rasta narxchasi / o'rtacha / katta (keng savdo)
+  const SIZES = {
+    rasta: { t: 'Kichik — rasta narxchasi', cols: 4, minH: '26mm', shop: '6pt', nom: '8pt',  price: '12pt', neu: '14pt', badge: '8pt',  bcH: 26 },
+    orta:  { t: "O'rtacha",                 cols: 3, minH: '38mm', shop: '7pt', nom: '10pt', price: '15pt', neu: '18pt', badge: '9pt',  bcH: 40 },
+    keng:  { t: 'Katta — savdo (keng)',     cols: 2, minH: '60mm', shop: '9pt', nom: '14pt', price: '22pt', neu: '28pt', badge: '12pt', bcH: 64 },
+  };
+
   // Tanlangan format uchun yaroqli shtrix qiymatini qaytaradi (kerak bo'lsa generatsiya)
   function ensureValue(s, format) {
     const raw = (s.shtrix || '').trim();
@@ -42,10 +49,10 @@ const Yorliq = (() => {
   }
 
   // JsBarcode -> SVG matni (xato bo'lsa CODE128 ga tushadi)
-  function barcodeSVG(value, format) {
+  function barcodeSVG(value, format, height) {
     if (typeof JsBarcode === 'undefined') return '<div style="color:#c00">JsBarcode yuklanmadi</div>';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    const opt = { width: 2, height: 40, fontSize: 13, margin: 2, displayValue: true };
+    const opt = { width: 2, height: height || 40, fontSize: 13, margin: 2, displayValue: true };
     try { JsBarcode(svg, String(value), { ...opt, format }); }
     catch (_) {
       try { JsBarcode(svg, String(value), { ...opt, format: 'CODE128' }); }
@@ -70,10 +77,11 @@ const Yorliq = (() => {
       <div class="toolbar" style="margin:0 0 14px">
         <div class="field" style="flex:1;margin:0"><label>Miqdor (nechta yorliq)</label>
           <input class="input" id="y-qty" type="number" inputmode="numeric" min="1" value="1"></div>
-        <div class="field" style="flex:1;margin:0"><label>Ustun (A4)</label>
-          <select class="input" id="y-cols">
-            <option value="2">2</option><option value="3" selected>3</option>
-            <option value="4">4</option><option value="5">5</option>
+        <div class="field" style="flex:1;margin:0"><label>O'lcham</label>
+          <select class="input" id="y-size">
+            <option value="rasta">Kichik — rasta narxchasi</option>
+            <option value="orta" selected>O'rtacha</option>
+            <option value="keng">Katta — savdo (keng)</option>
           </select></div>
       </div>
 
@@ -119,7 +127,8 @@ const Yorliq = (() => {
     const s = Storage.getServices().find(x => x.id === id);
     if (!s) return;
     const qty = Math.max(1, Math.min(500, Number(document.getElementById('y-qty').value) || 1));
-    const cols = Number(document.getElementById('y-cols').value) || 3;
+    const Z = SIZES[document.getElementById('y-size').value] || SIZES.orta;
+    const cols = Z.cols;
     const format = document.getElementById('y-fmt').value;
     const showPrice = document.getElementById('y-price').checked;
     const isDisc = document.getElementById('y-disc').checked;
@@ -127,7 +136,7 @@ const Yorliq = (() => {
     // Shtrix qiymati (yo'q bo'lsa generatsiya qilib mahsulotga ham saqlaymiz)
     const value = ensureValue(s, format);
     if (!s.shtrix) { Storage.updateService(s.id, { shtrix: value }); Sheets.scheduleSync(); }
-    const svg = barcodeSVG(value, format);
+    const svg = barcodeSVG(value, format, Z.bcH);
 
     // Narx / chegirma hisobi
     const eski = s.narx;
@@ -173,18 +182,18 @@ const Yorliq = (() => {
         .sheet { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 3mm; }
         .lbl { border: 1px dashed #bbb; border-radius: 4px; padding: 3mm 2mm; text-align: center;
                page-break-inside: avoid; display: flex; flex-direction: column; align-items: center;
-               justify-content: center; gap: 1mm; min-height: 30mm; }
-        .lbl .shop { font-size: 7pt; color: #666; }
-        .lbl .nom { font-size: 10pt; font-weight: 700; line-height: 1.1; }
-        .lbl .price { font-size: 14pt; font-weight: 800; }
+               justify-content: center; gap: 1mm; min-height: ${Z.minH}; }
+        .lbl .shop { font-size: ${Z.shop}; color: #666; }
+        .lbl .nom { font-size: ${Z.nom}; font-weight: 700; line-height: 1.1; }
+        .lbl .price { font-size: ${Z.price}; font-weight: 800; }
         .lbl .bc svg { max-width: 100%; height: auto; }
         /* chegirma (sale) */
         .lbl.sale { border: 2px solid #e11d48; }
         .sale .prices { display: flex; align-items: center; gap: 6px; justify-content: center; }
-        .sale .old { text-decoration: line-through; color: #888; font-size: 9pt; }
-        .sale .badge { background: #e11d48; color: #fff; font-weight: 800; font-size: 9pt;
+        .sale .old { text-decoration: line-through; color: #888; font-size: ${Z.shop}; }
+        .sale .badge { background: #e11d48; color: #fff; font-weight: 800; font-size: ${Z.badge};
                        border-radius: 5px; padding: 1px 6px; }
-        .sale .new { color: #e11d48; font-size: 16pt; font-weight: 900; }
+        .sale .new { color: #e11d48; font-size: ${Z.neu}; font-weight: 900; }
       </style></head>
       <body>
         <div class="sheet">${labels}</div>
