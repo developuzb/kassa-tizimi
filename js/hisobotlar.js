@@ -75,6 +75,7 @@ const Hisobotlar = (() => {
     return res.sort((a, b) => a.amalGacha - b.amalGacha);
   }
   let serialQ = '';
+  let chekQ = '';
 
   /* ============================================================
      ASOSIY RENDER (qobiq)
@@ -83,7 +84,7 @@ const Hisobotlar = (() => {
     const root = document.getElementById('view-hisobot');
     const r = rangeOf();
     const TABS = [
-      ['umumiy', '🏠 Umumiy'], ['moliya', '📈 Moliya'], ['ombor', '📦 Ombor'],
+      ['umumiy', '🏠 Umumiy'], ['moliya', '📈 Moliya'], ['cheklar', '🧾 Sotuvlar'], ['ombor', '📦 Ombor'],
       ['xodim', '👥 Xodim'], ['mijoz', '🙋 Mijoz'], ['qarz', '📝 Qarzdorlar'], ['kpi', '⚙️ KPI'],
     ];
     root.innerHTML = `
@@ -127,6 +128,7 @@ const Hisobotlar = (() => {
     if (!body) return;
     if (tab === 'umumiy')      body.innerHTML = tabUmumiy();
     else if (tab === 'moliya') { body.innerHTML = tabMoliya(); drawChart(dailySeries()); }
+    else if (tab === 'cheklar') body.innerHTML = tabCheklar();
     else if (tab === 'ombor')  body.innerHTML = tabOmbor();
     else if (tab === 'xodim')  body.innerHTML = tabXodim();
     else if (tab === 'mijoz')  body.innerHTML = tabMijoz();
@@ -291,6 +293,54 @@ const Hisobotlar = (() => {
         <div class="row-between" style="padding:14px"><span class="muted">${refunds.length} ta chek</span>
           <b style="color:var(--danger)">−${money(refundSum)}</b></div>
       </div>` : ''}`;
+  }
+
+  /* ============================================================
+     TAB: SOTUVLAR (cheklar) — ko'rish + qaytarish
+     ============================================================ */
+  function tabCheklar() {
+    return `
+      <div class="cart">
+        <div class="cart-head">🧾 Sotuvlar (cheklar)</div>
+        <div style="padding:12px 14px">
+          <input class="input" id="dash-chek" placeholder="🔎 chek №, mijoz, tovar yoki seriya" value="${esc(chekQ)}" oninput="Hisobotlar.searchChek(this.value)">
+        </div>
+        <div id="dash-chek-list">${chekListHTML()}</div>
+      </div>`;
+  }
+
+  function chekListHTML() {
+    const q = chekQ.trim().toLowerCase();
+    let list = salesInRange().slice().sort((a, b) => b.ts - a.ts);
+    if (q) list = list.filter(s =>
+      String(s.chek_raqami).includes(q) ||
+      (s.mijoz || '').toLowerCase().includes(q) ||
+      (s.xodim || '').toLowerCase().includes(q) ||
+      itemsOf(s).some(it => (it.nom || '').toLowerCase().includes(q)
+        || (it.seriyalar || []).some(x => String(x).toLowerCase().includes(q))));
+    if (!list.length) return '<p class="empty" style="padding:22px">Sotuv topilmadi</p>';
+    return list.slice(0, 100).map(s => {
+      const items = itemsOf(s).map(it => esc(it.nom) + ((it.miqdor || 1) > 1 ? ` ×${it.miqdor}` : '')
+        + ((it.seriyalar && it.seriyalar.length) ? ` (${esc(it.seriyalar.join(','))})` : '')).join(', ');
+      const f = foydaOf(s);
+      const pi = (PAY[s.tolov_usuli] || ['🧾'])[0];
+      return `
+      <div class="cart-item" style="${s.qaytarilgan ? 'opacity:.55' : ''}">
+        <span>${s.qaytarilgan ? '↩️' : pi}</span>
+        <div class="ci-name" style="flex:1;min-width:0">
+          <div style="font-weight:700">#${s.chek_raqami} ${s.qarz ? '<span class="badge off">qarz</span>' : ''}${s.qaytarilgan ? ' <span style="color:var(--danger)">(qaytarilgan)</span>' : ''}</div>
+          <div class="muted" style="font-size:12px;white-space:normal">${esc(s.sana || '')} ${esc(s.vaqt || '')}${s.mijoz ? ' • ' + esc(s.mijoz) : ''}${items ? ' • ' + items : ''}${f ? ` • foyda ${money(f)}` : ''}</div>
+        </div>
+        <span class="ci-price">${money(s.jami)}</span>
+        ${s.qaytarilgan ? '' : `<button class="icon-btn" title="Qaytarish" onclick="Hisobotlar.refund(${s.chek_raqami})">↩️</button>`}
+      </div>`;
+    }).join('');
+  }
+
+  function searchChek(v) {
+    chekQ = v || '';
+    const el = document.getElementById('dash-chek-list');
+    if (el) el.innerHTML = chekListHTML();
   }
 
   /* ============================================================
@@ -646,5 +696,5 @@ const Hisobotlar = (() => {
     });
   }
 
-  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, saveKpi, restock, searchSerial };
+  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, saveKpi, restock, searchSerial, searchChek };
 })();
