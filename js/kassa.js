@@ -432,6 +432,7 @@ const Kassa = (() => {
         <div class="pay-opt selected" data-pay="naqd"><span class="emoji">💵</span>Naqd</div>
         <div class="pay-opt" data-pay="karta"><span class="emoji">💳</span>Karta</div>
         <div class="pay-opt" data-pay="otkazma"><span class="emoji">📲</span>O'tkazma</div>
+        <div class="pay-opt" data-pay="qarz"><span class="emoji">📝</span>Qarz</div>
       </div>
       <button class="btn btn-success" id="confirm-pay">✅ Tasdiqlash va chek</button>
     `);
@@ -500,6 +501,12 @@ const Kassa = (() => {
     const now = new Date();
     const c = calc();
 
+    // Qarz uchun mijoz majburiy (kimga qarz berilganini bilish kerak)
+    if (pay === 'qarz' && !customerId) {
+      Toast.show('Qarz uchun avval mijozni tanlang', 'error');
+      return;
+    }
+
     // Mijozga beriladigan ballar
     const ballOlindi = (set.sadoqatYoq && customerId)
       ? Math.round(c.jami * (set.sadoqatFoiz || 0) / 100) : 0;
@@ -530,6 +537,16 @@ const Kassa = (() => {
       ts: now.getTime(),
     };
 
+    // Xodim KPI (kategoriya bo'yicha ulush) — shu sotuvda xodimga hisoblanadi
+    sale.xodimKpi = sale.items.reduce((a, it) => a + Storage.kpiForItem(it), 0);
+
+    // Qarzga sotilsa — qarzdor sifatida belgilaymiz (savdoga darrov kiradi)
+    if (pay === 'qarz') {
+      sale.qarz = true;
+      sale.qarzStatus = 'ochiq';
+      sale.qarzTolanganTs = null;
+    }
+
     // 1) Avval lokalga saqlaymiz (offline kafolat)
     Storage.addSale(sale);
 
@@ -545,7 +562,10 @@ const Kassa = (() => {
     // 4) Ochiq smena summasini yangilaymiz
     shift.jami_sotuv = (shift.jami_sotuv || 0) + sale.jami;
     shift.sotuvSoni = (shift.sotuvSoni || 0) + 1;
+    // Naqd kassaga faqat naqd sotuv tushadi (qarz/karta/o'tkazma naqd emas)
     if (pay === 'naqd') shift.naqdSotuv = (shift.naqdSotuv || 0) + sale.jami;
+    // Xodim ish haqi (KPI) smena davomida to'planib boradi
+    shift.ishHaqi = (shift.ishHaqi || 0) + (sale.xodimKpi || 0);
     Storage.setActiveShift(shift);
 
     Modal.close();
@@ -570,7 +590,7 @@ const Kassa = (() => {
     const set = Storage.getSettings();
     const win = window.open('', '_blank', 'width=380,height=600');
     if (!win) { Toast.show('Print oynasi bloklandi. Brauzer ruxsatini tekshiring.', 'error'); return; }
-    const payLabel = { naqd: 'Naqd', karta: 'Karta', otkazma: "O'tkazma" }[sale.tolov_usuli] || sale.tolov_usuli;
+    const payLabel = { naqd: 'Naqd', karta: 'Karta', otkazma: "O'tkazma", qarz: 'Qarz' }[sale.tolov_usuli] || sale.tolov_usuli;
     const extra = [
       sale.chegirma ? `<tr><td>Chegirma:</td><td class="r">− ${sale.chegirma.toLocaleString('uz-UZ')}</td></tr>` : '',
       sale.ballSarflandi ? `<tr><td>Ball ishlatildi:</td><td class="r">${sale.ballSarflandi}</td></tr>` : '',

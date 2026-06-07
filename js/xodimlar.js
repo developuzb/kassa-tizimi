@@ -46,6 +46,7 @@ const Xodimlar = (() => {
             <div class="row-between"><span class="muted">Boshlandi:</span><b>${esc(shift.boshlandi)}</b></div>
             <div class="row-between"><span class="muted">Sotuvlar soni:</span><b>${shift.sotuvSoni || 0}</b></div>
             <div class="row-between"><span class="muted">Jami summa:</span><b style="color:var(--primary)">${money(shift.jami_sotuv || 0)}</b></div>
+            <div class="row-between"><span class="muted">💰 Ish haqi (KPI):</span><b style="color:var(--success)">${money(shift.ishHaqi || 0)}</b></div>
             <div style="border-top:1px solid var(--hairline);margin:10px 0"></div>
             <div class="row-between"><span class="muted">Boshlang'ich pul:</span><b>${money(shift.boshlangichPul || 0)}</b></div>
             <div class="row-between"><span class="muted">Naqd sotuv:</span><b>${money(shift.naqdSotuv || 0)}</b></div>
@@ -99,6 +100,7 @@ const Xodimlar = (() => {
         jami_sotuv: 0, sotuvSoni: 0, startTs: now.getTime(),
         boshlangichPul: Math.max(0, Number(document.getElementById('sh-cash').value) || 0),
         naqdSotuv: 0, naqdKirim: 0, naqdChiqim: 0,
+        ishHaqi: 0,
       });
       Modal.close();
       render();
@@ -142,6 +144,7 @@ const Xodimlar = (() => {
       <div class="cart" style="margin-bottom:12px"><div style="padding:12px 14px">
         <div class="row-between"><span class="muted">Jami sotuv:</span><b>${money(shift.jami_sotuv || 0)}</b></div>
         <div class="row-between"><span class="muted">Sotuvlar soni:</span><b>${shift.sotuvSoni || 0}</b></div>
+        <div class="row-between"><span class="muted">Ish haqi (KPI):</span><b style="color:var(--success)">${money(shift.ishHaqi || 0)}</b></div>
         <div class="row-between"><span class="muted">Kassada bo'lishi kerak (naqd):</span><b style="color:var(--primary)">${money(kutilgan)}</b></div>
       </div></div>
       <div class="field"><label>Kassadagi haqiqiy naqd pul (sanang)</label>
@@ -175,6 +178,7 @@ const Xodimlar = (() => {
         naqdSotuv: shift.naqdSotuv || 0,
         naqdKirim: shift.naqdKirim || 0,
         naqdChiqim: shift.naqdChiqim || 0,
+        ishHaqi: shift.ishHaqi || 0,
         kutilganNaqd: kutilgan,
         haqiqiyNaqd: haqiqiy,
         farq: haqiqiy - kutilgan,

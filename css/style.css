@@ -326,6 +326,34 @@ body {
 .opt-toggle.on { border-color: var(--primary); background: var(--accent-soft); color: var(--primary); }
 .opt-toggle input { width: auto; margin: 0; accent-color: var(--primary); }
 .opt-toggle .ot-ico { display: inline-flex; opacity: .8; }
+
+/* ===== Superdashboard ===== */
+.dash-period { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+.seg { display: inline-flex; background: var(--fill); border-radius: 13px; padding: 3px; gap: 2px; }
+.seg-btn {
+  border: none; background: none; cursor: pointer; padding: 8px 14px; border-radius: 10px;
+  font-weight: 700; font-size: 13.5px; color: var(--muted); transition: background .15s, color .15s;
+}
+.seg-btn.active { background: var(--surface-solid); color: var(--primary); box-shadow: var(--shadow-sm); }
+.dash-range { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.dash-range .input { width: auto; padding: 9px 11px; font-size: 13.5px; }
+
+.reco { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+.reco-item {
+  display: flex; align-items: center; gap: 11px; padding: 13px 15px;
+  background: var(--accent-soft); border: 1px solid var(--accent-soft-2);
+  border-radius: 14px;
+}
+.reco-ic { font-size: 20px; flex: none; line-height: 1; }
+.reco-txt { flex: 1; font-size: 13.5px; line-height: 1.35; color: var(--text); }
+.reco-btn {
+  flex: none; border: none; cursor: pointer; background: var(--primary); color: #fff;
+  font-weight: 700; font-size: 12.5px; padding: 7px 13px; border-radius: 10px;
+}
+
+.kpi-row { display: grid; grid-template-columns: 1fr 84px 110px; gap: 9px; align-items: center; margin-bottom: 10px; }
+.kpi-row .kpi-name { font-weight: 700; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-row .input { padding: 9px 10px; }
 .icon-btn.pin-tog.active { opacity: 1; filter: none; }
 
 /* Foyda/margin paneli (faqat Servis kategoriyasi formasida) */

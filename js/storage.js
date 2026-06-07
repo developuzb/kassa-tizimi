@@ -224,6 +224,9 @@ const Storage = (() => {
     sadoqatYoq: false,           // sadoqat ballari yoqilganmi
     sadoqatFoiz: 1,              // har xariddan necha % ball beriladi
     ballNarxi: 1,                // 1 ball = necha so'm (ballarni sarflashda)
+    // --- Xodim KPI (har kategoriya uchun ulush) ---
+    // { "<kategoriya>": { tur: "foiz" | "summa", qiymat: number } }
+    kpi: {},
   };
   function getSettings()      { return { ...DEFAULT_SETTINGS, ...read(K.settings, {}) }; }
   function setSettings(patch) { write(K.settings, { ...getSettings(), ...patch }); }
@@ -274,6 +277,39 @@ const Storage = (() => {
     return getServices().filter(s => s.qoldiq != null && s.qoldiq <= threshold);
   }
 
+  /* ============ XODIM KPI (kategoriya bo'yicha ulush) ============ */
+  function getKpiConfig()    { return getSettings().kpi || {}; }
+  function setKpiConfig(map) { setSettings({ kpi: map || {} }); }
+  // Mavjud kategoriyalar ro'yxati (KPI sozlash / filtr uchun)
+  function categoriesList() {
+    return [...new Set(getServices().map(s => s.kategoriya).filter(Boolean))].sort();
+  }
+  // Bitta sotuv-item uchun xodimga tegishli KPI summasi.
+  // item.id dinamik narxda "serviceId~ts" bo'lishi mumkin — "~" gacha kesamiz.
+  function kpiForItem(item) {
+    if (!item) return 0;
+    const baseId = String(item.id || '').split('~')[0];
+    const svc = getServices().find(s => s.id === baseId);
+    const kat = svc && svc.kategoriya;
+    const rule = kat ? getKpiConfig()[kat] : null;
+    if (!rule || !rule.qiymat) return 0;
+    const miqdor = item.miqdor || 1;
+    if (rule.tur === 'foiz')  return Math.round((item.narx || 0) * miqdor * rule.qiymat / 100);
+    if (rule.tur === 'summa') return rule.qiymat * miqdor;
+    return 0;
+  }
+
+  /* ============ QARZ (qarzga sotilgan cheklar) ============ */
+  // faqatOchiq=true -> hali to'lanmagan qarzlar; false -> barcha qarz cheklari
+  function getDebts(faqatOchiq = true) {
+    return getSales().filter(s => s.qarz && !s.qaytarilgan &&
+      (!faqatOchiq || s.qarzStatus === 'ochiq'));
+  }
+  // Qarzni to'langan deb belgilash (chek raqami bo'yicha)
+  function markDebtPaid(chekRaqami) {
+    updateSale(chekRaqami, { qarzStatus: 'tolangan', qarzTolanganTs: Date.now() });
+  }
+
   /* ============ DEMO MA'LUMOTLAR (birinchi ishga tushirishda) ============ */
   function seedIfEmpty() {
     // Standart filial
@@ -321,5 +357,9 @@ const Storage = (() => {
     getQueue, setQueue, enqueue, dequeue,
     // ombor qoldig'i
     decrementStock, incrementStock, lowStock,
+    // xodim KPI
+    getKpiConfig, setKpiConfig, categoriesList, kpiForItem,
+    // qarz
+    getDebts, markDebtPaid,
   };
 })();
