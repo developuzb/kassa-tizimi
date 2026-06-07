@@ -139,6 +139,8 @@ const Kassa = (() => {
     if (s.kategoriya === 'Servis') { askPaynet(s); return; }
     // Narxi belgilanmagan xizmat — avval narx so'raymiz (PriceInputModal)
     if (s.ochiqNarx) { askPrice(s); return; }
+    // Seriya/IMEI talab qilinadi — har dona uchun alohida seriya so'raymiz
+    if (s.seriyaTalab) { askSerial(s); return; }
     const item = cart.find(c => c.id === id);
     // Qoldiq kuzatilayotgan bo'lsa — ortiqcha qo'shishni bloklaymiz
     if (s.qoldiq != null) {
@@ -196,6 +198,36 @@ const Kassa = (() => {
       if (!narx || narx <= 0) { Toast.show('Narx kiriting', 'error'); return; }
       // ochiq narxli yozuv — har safar alohida qator bo'lsin (id noyob)
       cart.push({ id: s.id + '~' + Date.now().toString(36), nom: s.nom, narx, emoji: s.emoji, miqdor: 1 });
+      Modal.close();
+      renderCart();
+      Toast.show('Savatga qo\'shildi ✓', 'success');
+    };
+  }
+
+  /* ---------- Seriya / IMEI kiritish modali — har dona alohida qator ---------- */
+  function askSerial(s) {
+    // Qoldiq tekshiruvi (savatdagi shu tovardan nechta bor)
+    if (s.qoldiq != null) {
+      const bor = cart.filter(c => (c.baseId || c.id) === s.id).reduce((a, c) => a + c.miqdor, 0);
+      if (bor >= s.qoldiq) { Toast.show(`"${s.nom}" — omborda yetarli emas (${s.qoldiq})`, 'error'); return; }
+    }
+    Modal.open(`
+      <h3>🔢 Seriya / IMEI</h3>
+      <p class="muted" style="margin-bottom:14px">${esc(s.emoji) || '🏷️'} <b>${esc(s.nom)}</b> — ${money(s.narx)}</p>
+      <div class="field"><label>Seriya / IMEI / polis raqami</label>
+        <input class="input" id="as-ser" placeholder="masalan: 86012345678901"></div>
+      <button class="btn btn-primary" id="as-go">Savatga qo'shish</button>
+    `);
+    const inp = document.getElementById('as-ser');
+    inp.focus();
+    document.getElementById('as-go').onclick = () => {
+      const seriya = inp.value.trim();
+      if (!seriya) { Toast.show('Seriya/IMEI kiriting', 'error'); return; }
+      cart.push({
+        id: s.id + '~' + Date.now().toString(36), baseId: s.id,
+        nom: s.nom, narx: s.narx, emoji: s.emoji, miqdor: 1, seriya,
+        muddatTalab: !!s.muddatTalab, muddatKun: s.muddatKun || null,
+      });
       Modal.close();
       renderCart();
       Toast.show('Savatga qo\'shildi ✓', 'success');
@@ -315,6 +347,13 @@ const Kassa = (() => {
   function changeQty(id, delta) {
     const item = cart.find(c => c.id === id);
     if (!item) return;
+    // Seriya qatori — har dona alohida; "+" yangi seriya so'rashi kerak
+    if (item.seriya && delta > 0) {
+      const s = Storage.getServices().find(x => x.id === item.baseId);
+      if (s) askSerial(s);
+      else Toast.show('Bu tovar har dona alohida seriya bilan qo\'shiladi', 'error');
+      return;
+    }
     if (delta > 0) {
       const s = Storage.getServices().find(x => x.id === id);
       if (s && s.qoldiq != null && item.miqdor >= s.qoldiq) {
@@ -347,7 +386,7 @@ const Kassa = (() => {
             <span>${esc(ci.emoji)}</span>
             <span class="ci-name">${esc(ci.nom)}${ci.komissiya != null
               ? `<br><small class="muted" style="font-weight:400">Tan: ${money(ci.tanNarx)} · Kom: ${money(ci.komissiya)}</small>`
-              : ''}</span>
+              : ''}${ci.seriya ? `<br><small class="muted" style="font-weight:400">🔢 ${esc(ci.seriya)}</small>` : ''}</span>
             <span class="qty">
               <button onclick="Kassa.changeQty('${ci.id}',-1)">−</button>
               <span>${ci.miqdor}</span>
@@ -525,6 +564,8 @@ const Kassa = (() => {
       items: cart.map(ci => ({
         id: ci.id, nom: ci.nom, narx: ci.narx, miqdor: ci.miqdor,
         ...(ci.komissiya != null ? { tanNarx: ci.tanNarx, komissiya: ci.komissiya } : {}),
+        ...(ci.seriya ? { seriyalar: [ci.seriya] } : {}),
+        ...(ci.muddatTalab && ci.muddatKun ? { amalGacha: now.getTime() + ci.muddatKun * 86400000 } : {}),
       })),
       oraliq: c.subtotal,
       chegirma: c.chegirma,
@@ -616,6 +657,8 @@ const Kassa = (() => {
           ${items.map(c => `
             <tr><td>${esc(c.nom)}</td></tr>
             ${c.komissiya != null ? `<tr><td colspan="2" style="font-size:11px;color:#555">Tan: ${Number(c.tanNarx).toLocaleString('uz-UZ')} + Kom: ${Number(c.komissiya).toLocaleString('uz-UZ')}</td></tr>` : ''}
+            ${(c.seriyalar && c.seriyalar.length) ? `<tr><td colspan="2" style="font-size:11px;color:#555">Seriya: ${esc(c.seriyalar.join(', '))}</td></tr>` : ''}
+            ${c.amalGacha ? `<tr><td colspan="2" style="font-size:11px;color:#555">Amal: ${new Date(c.amalGacha).toLocaleDateString('uz-UZ')} gacha</td></tr>` : ''}
             <tr><td>${c.miqdor} x ${Number(c.narx).toLocaleString('uz-UZ')}</td>
                 <td class="r">${(c.narx*c.miqdor).toLocaleString('uz-UZ')}</td></tr>`).join('')}
         </table>

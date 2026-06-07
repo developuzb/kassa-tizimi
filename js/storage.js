@@ -247,11 +247,13 @@ const Storage = (() => {
   /* ============ OMBOR QOLDIG'I ============ */
   // Sotuvdan keyin qoldiqni kamaytiradi (faqat qoldiq kuzatilayotgan tovarlarda).
   // items: [{ id, miqdor }]
+  // Dinamik narx/seriya id'si "baseId~ts" bo'lishi mumkin — baza id bilan moslaymiz
+  function baseId(id) { return String(id).split('~')[0]; }
   function decrementStock(items) {
     const list = getServices();
     let changed = false;
     items.forEach(it => {
-      const s = list.find(x => x.id === it.id);
+      const s = list.find(x => x.id === baseId(it.id));
       if (s && s.qoldiq != null) {
         s.qoldiq = Math.max(0, Number(s.qoldiq) - it.miqdor);
         changed = true;
@@ -264,13 +266,20 @@ const Storage = (() => {
     const list = getServices();
     let changed = false;
     items.forEach(it => {
-      const s = list.find(x => x.id === it.id);
+      const s = list.find(x => x.id === baseId(it.id));
       if (s && s.qoldiq != null) {
         s.qoldiq = Number(s.qoldiq) + it.miqdor;
         changed = true;
       }
     });
     if (changed) setServices(list);
+  }
+  // Seriya/IMEI bo'yicha sotuvni topish (qaysi chek/mijoz)
+  function findBySerial(q) {
+    const needle = String(q).trim().toLowerCase();
+    if (!needle) return [];
+    return getSales().filter(s => (s.items || []).some(it =>
+      (it.seriyalar || []).some(x => String(x).toLowerCase().includes(needle))));
   }
   // Kam qolgan tovarlar (ogohlantirish uchun)
   function lowStock(threshold = 5) {
@@ -356,7 +365,7 @@ const Storage = (() => {
     // navbat
     getQueue, setQueue, enqueue, dequeue,
     // ombor qoldig'i
-    decrementStock, incrementStock, lowStock,
+    decrementStock, incrementStock, lowStock, findBySerial,
     // xodim KPI
     getKpiConfig, setKpiConfig, categoriesList, kpiForItem,
     // qarz

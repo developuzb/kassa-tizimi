@@ -146,6 +146,15 @@ const Inventar = (() => {
         <input class="input" id="f-emoji" value="${esc(s?.emoji)}" placeholder="✂️" maxlength="2"></div>
       <div class="field"><label>Qoldiq (jismoniy tovar bo'lsa, ixtiyoriy)</label>
         <input class="input" id="f-qoldiq" type="number" inputmode="numeric" value="${s?.qoldiq ?? ''}" placeholder="bo'sh = kuzatilmaydi"></div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="f-seriya" ${s?.seriyaTalab ? 'checked' : ''} style="width:auto"> 🔢 Seriya / IMEI / polis raqami (sotuvda so'raladi)</label>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="f-muddat" ${s?.muddatTalab ? 'checked' : ''} style="width:auto"> 📆 Amal muddati bor (sug'urta / tarif)</label>
+      <div class="field" id="f-muddatkun-wrap" style="display:none"><label>Amal muddati (kun)</label>
+        <input class="input" id="f-muddatkun" type="number" inputmode="numeric" min="1" value="${s?.muddatKun ?? 365}" placeholder="365"></div>
+
       <div class="field"><label>Holati</label>
         <select class="input" id="f-aktiv">
           <option value="true" ${s?.aktiv !== false ? 'selected' : ''}>Aktiv</option>
@@ -162,6 +171,8 @@ const Inventar = (() => {
     const servisNote = document.getElementById('f-servis-note');
     const ochiqEl = document.getElementById('f-ochiq');
     const paynetEl = document.getElementById('f-paynet');
+    const muddatEl = document.getElementById('f-muddat');
+    const muddatKunWrap = document.getElementById('f-muddatkun-wrap');
 
     function refresh() {
       const isPaynet = paynetEl.checked;
@@ -171,6 +182,7 @@ const Inventar = (() => {
       narxWrap.style.display = atSale ? 'none' : 'block';
       tanWrap.style.display = atSale ? 'none' : 'block';   // tan narx faqat oddiy tovarda
       servisNote.style.display = (isServis && !isPaynet) ? 'block' : 'none';
+      muddatKunWrap.style.display = muddatEl.checked ? 'block' : 'none';
       // Paynet tanlansa ochiqNarx avtomatik o'chiriladi (bir-birini istisno qiladi)
       if (isPaynet) ochiqEl.checked = false;
     }
@@ -178,6 +190,7 @@ const Inventar = (() => {
     katEl.oninput = refresh;
     narxEl.oninput = refresh;
     ochiqEl.onchange = refresh;
+    muddatEl.onchange = refresh;
     refresh();
 
     document.getElementById('f-save').onclick = () => {
@@ -204,6 +217,10 @@ const Inventar = (() => {
         emoji: document.getElementById('f-emoji').value.trim() || '🏷️',
         qoldiq: qoldiqRaw === '' ? null : Number(qoldiqRaw),
         aktiv: document.getElementById('f-aktiv').value === 'true',
+        // Seriya/IMEI va amal muddati (sug'urta/SIM/kamera uchun)
+        seriyaTalab: document.getElementById('f-seriya').checked,
+        muddatTalab: muddatEl.checked,
+        muddatKun: muddatEl.checked ? Math.max(1, Number(document.getElementById('f-muddatkun').value) || 365) : null,
       };
       if (s) Storage.updateService(s.id, data);
       else   Storage.addService(data);

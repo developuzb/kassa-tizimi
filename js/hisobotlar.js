@@ -58,6 +58,24 @@ const Hisobotlar = (() => {
     return svc ? svc.kategoriya : 'Boshqa';
   }
 
+  // Amal muddati yaqinlashgan/o'tgan tovarlar (sotuv item.amalGacha bo'yicha)
+  function expiringSoon(days = 30) {
+    const now = Date.now();
+    const limit = now + days * 86400000;
+    const res = [];
+    Storage.getSales().forEach(s => {
+      if (s.qaytarilgan) return;
+      (s.items || []).forEach(it => {
+        if (it.amalGacha && it.amalGacha <= limit) {
+          res.push({ amalGacha: it.amalGacha, nom: it.nom, mijoz: s.mijoz || '', chek: s.chek_raqami,
+            seriya: (it.seriyalar || []).join(', '), otgan: it.amalGacha < now });
+        }
+      });
+    });
+    return res.sort((a, b) => a.amalGacha - b.amalGacha);
+  }
+  let serialQ = '';
+
   /* ============================================================
      ASOSIY RENDER (qobiq)
      ============================================================ */
@@ -202,9 +220,11 @@ const Hisobotlar = (() => {
     const debts = Storage.getDebts(true);
     const shifts = Storage.getShifts();
     const last = shifts[shifts.length - 1];
+    const exp = expiringSoon(30);
     const alerts = [
       out0.length ? ['🛑', `${out0.length} ta tovar tugagan`, "Hisobotlar.setTab('ombor')", 'Ombor'] : null,
       low.length ? ['⚠️', `${low.length} ta tovar kam qoldi`, "Hisobotlar.setTab('ombor')", 'Ko\'rish'] : null,
+      exp.length ? ['📆', `${exp.length} ta muddati tugayotgan (30 kun)`, "Hisobotlar.setTab('ombor')", 'Ko\'rish'] : null,
       debts.length ? ['📝', `${debts.length} ta ochiq qarz`, "Hisobotlar.setTab('qarz')", 'Qarzdorlar'] : null,
       (last && last.farq !== 0) ? [last.farq < 0 ? '🔻' : '🔺', `Oxirgi smena farqi: ${money(last.farq)}`, "Hisobotlar.setTab('xodim')", 'Xodim'] : null,
     ].filter(Boolean);
@@ -303,6 +323,17 @@ const Hisobotlar = (() => {
         <div class="stat-card"><div class="label">Taxminiy foyda</div><div class="value">${money(foydaVal)}</div></div>
         <div class="stat-card"><div class="label">Qoldiq (dona)</div><div class="value">${dona}</div></div>
       </div>
+
+      <div class="cart" style="margin-bottom:16px">
+        <div class="cart-head">🔢 Seriya / IMEI qidirish</div>
+        <div style="padding:12px 14px">
+          <input class="input" id="dash-serial" placeholder="seriya/IMEI/polis raqamini kiriting" value="${esc(serialQ)}" oninput="Hisobotlar.searchSerial(this.value)">
+          <div id="dash-serial-res" style="margin-top:10px">${serialResultsHTML()}</div>
+        </div>
+      </div>
+
+      ${expiringBlockHTML()}
+
       ${(out0.length || low.length) ? `
       <div class="cart" style="margin-bottom:16px;border-color:var(--danger)">
         <div class="cart-head">⚠️ To'ldirish kerak</div>
@@ -326,6 +357,44 @@ const Hisobotlar = (() => {
           <span class="ci-name">${esc(s.nom)}</span>
           <button class="btn btn-ghost" style="width:auto;padding:7px 12px" onclick="Yorliq.open('${s.id}')">🏷️ Aksiya yorlig'i</button></div>`).join('')}
       </div>` : ''}`;
+  }
+
+  function serialResultsHTML() {
+    const q = serialQ.trim();
+    if (!q) return '<p class="muted" style="font-size:12.5px">Raqam kiriting — qaysi chek/mijozga sotilgani topiladi.</p>';
+    const found = Storage.findBySerial(q);
+    if (!found.length) return '<p class="muted" style="font-size:12.5px">Topilmadi.</p>';
+    return found.slice(0, 10).map(s => {
+      const its = (s.items || []).filter(it => (it.seriyalar || []).some(x => String(x).toLowerCase().includes(q.toLowerCase())));
+      return `<div class="cart-item"><span>🔢</span>
+        <div class="ci-name" style="flex:1;min-width:0">
+          <div style="font-weight:700">${esc(its.map(i => i.nom).join(', '))}</div>
+          <div class="muted" style="font-size:12px">#${s.chek_raqami} • ${esc(s.sana)} • ${esc(s.mijoz || 'mijozsiz')} • ${esc(s.xodim)}</div>
+        </div></div>`;
+    }).join('');
+  }
+
+  function searchSerial(v) {
+    serialQ = v || '';
+    const el = document.getElementById('dash-serial-res');
+    if (el) el.innerHTML = serialResultsHTML();
+  }
+
+  function expiringBlockHTML() {
+    const exp = expiringSoon(30);
+    if (!exp.length) return '';
+    return `<div class="cart" style="margin-bottom:16px;border-color:var(--accent-soft-2)">
+      <div class="cart-head">📆 Muddati tugayotgan (30 kun)</div>
+      ${exp.slice(0, 12).map(e => {
+        const kun = Math.ceil((e.amalGacha - Date.now()) / 86400000);
+        return `<div class="cart-item"><span>${e.otgan ? '🔴' : '🟡'}</span>
+          <div class="ci-name" style="flex:1;min-width:0">
+            <div style="font-weight:700">${esc(e.nom)} ${e.mijoz ? `<span class="muted" style="font-weight:400;font-size:12px">• ${esc(e.mijoz)}</span>` : ''}</div>
+            <div class="muted" style="font-size:12px">${e.seriya ? esc(e.seriya) + ' • ' : ''}#${e.chek}</div>
+          </div>
+          <span class="ci-price" style="color:${e.otgan ? 'var(--danger)' : 'var(--text)'}">${e.otgan ? 'muddati o\'tgan' : kun + ' kun'}</span></div>`;
+      }).join('')}
+    </div>`;
   }
 
   /* ============================================================
@@ -577,5 +646,5 @@ const Hisobotlar = (() => {
     });
   }
 
-  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, saveKpi, restock };
+  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, saveKpi, restock, searchSerial };
 })();
