@@ -85,7 +85,7 @@ const Hisobotlar = (() => {
     const r = rangeOf();
     const TABS = [
       ['umumiy', '🏠 Umumiy'], ['moliya', '📈 Moliya'], ['cheklar', '🧾 Sotuvlar'], ['ombor', '📦 Ombor'],
-      ['xodim', '👥 Xodim'], ['mijoz', '🙋 Mijoz'], ['qarz', '📝 Qarzdorlar'], ['kpi', '⚙️ KPI'],
+      ['xodim', '👥 Xodim'], ['mijoz', '🙋 Mijoz'], ['qarz', '📝 Qarzdorlar'],
     ];
     root.innerHTML = `
       <h2 class="section-title">📊 Boshqaruv paneli</h2>
@@ -133,7 +133,6 @@ const Hisobotlar = (() => {
     else if (tab === 'xodim')  body.innerHTML = tabXodim();
     else if (tab === 'mijoz')  body.innerHTML = tabMijoz();
     else if (tab === 'qarz')   body.innerHTML = tabQarz();
-    else if (tab === 'kpi')    body.innerHTML = tabKpi();
   }
 
   /* ============================================================
@@ -171,7 +170,7 @@ const Hisobotlar = (() => {
     // KPI sozlanmagan bo'lsa
     const kpi = Storage.getKpiConfig();
     if (!Object.keys(kpi).length && Storage.getSales().length > 3)
-      out.push({ ic: '⚙️', txt: `Xodim KPI hali sozlanmagan. Har kategoriyaga ulush belgilang.`, act: ['Sozlash', "Hisobotlar.setTab('kpi')"] });
+      out.push({ ic: '⚙️', txt: `Xodim KPI hali sozlanmagan. Admin panelda har kategoriyaga ulush belgilang.`, act: ['Sozlash', "App.go('admin')"] });
     // Eng foydali kategoriya (oraliqda)
     const byCatProfit = {};
     salesInRange().filter(s => !s.qaytarilgan).forEach(s => itemsOf(s).forEach(it => {
@@ -569,47 +568,6 @@ const Hisobotlar = (() => {
   }
 
   /* ============================================================
-     TAB: KPI SOZLAMASI
-     ============================================================ */
-  function tabKpi() {
-    const cats = Storage.categoriesList();
-    const cfg = Storage.getKpiConfig();
-    return `
-      <div class="cart" style="margin-bottom:14px">
-        <div class="cart-head">⚙️ Xodim KPI (kategoriya ulushi)</div>
-        <div style="padding:14px">
-          <p class="muted" style="font-size:13px;margin-bottom:12px">Har kategoriya uchun xodimga beriladigan ulush — <b>foiz</b> (sotuv narxidan %) yoki <b>summa</b> (har dona uchun so'm). Tovar sotilganda ochiq smenadagi xodim ish haqiga qo'shiladi.</p>
-          ${cats.length ? cats.map(c => {
-            const r = cfg[c] || { tur: 'foiz', qiymat: 0 };
-            return `
-            <div class="kpi-row" data-kat="${esc(c)}">
-              <span class="kpi-name">${esc(c)}</span>
-              <select class="input kpi-tur">
-                <option value="foiz" ${r.tur === 'foiz' ? 'selected' : ''}>%</option>
-                <option value="summa" ${r.tur === 'summa' ? 'selected' : ''}>so'm</option>
-              </select>
-              <input class="input kpi-val" type="number" inputmode="numeric" min="0" value="${r.qiymat || 0}">
-            </div>`;
-          }).join('') : '<p class="empty">Avval Omborga tovar/kategoriya qo\'shing</p>'}
-          ${cats.length ? '<button class="btn btn-primary" style="margin-top:14px" onclick="Hisobotlar.saveKpi()">💾 KPI saqlash</button>' : ''}
-        </div>
-      </div>`;
-  }
-
-  function saveKpi() {
-    const map = {};
-    document.querySelectorAll('#dash-body .kpi-row').forEach(row => {
-      const kat = row.dataset.kat;
-      const tur = row.querySelector('.kpi-tur').value;
-      const qiymat = Math.max(0, Number(row.querySelector('.kpi-val').value) || 0);
-      if (qiymat > 0) map[kat] = { tur, qiymat };
-    });
-    Storage.setKpiConfig(map);
-    Toast.show('KPI saqlandi ✓', 'success');
-    Sheets.scheduleSync();
-  }
-
-  /* ============================================================
      TEZKOR AMAL: Restock (♻️)
      ============================================================ */
   function restock(id) {
@@ -696,5 +654,5 @@ const Hisobotlar = (() => {
     });
   }
 
-  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, saveKpi, restock, searchSerial, searchChek };
+  return { render, refund, setMode, applyRange, setTab, setDebtView, markPaid, restock, searchSerial, searchChek };
 })();

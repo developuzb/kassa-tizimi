@@ -134,6 +134,11 @@ const Admin = (() => {
         <button class="btn btn-primary" onclick="Admin.saveTaxLoyalty()">💾 Saqlash</button>
       `)}
 
+      ${folder('💰', 'Xodim KPI (kategoriya ulushi)', Object.keys(s.kpi || {}).length + ' ta kategoriya sozlangan', `
+        <p class="muted" style="font-size:13px;margin-bottom:12px">Har kategoriya uchun xodimga beriladigan ulush — <b>foiz</b> (sotuv narxidan %) yoki <b>summa</b> (har dona uchun ${esc(s.valyuta)}). Tovar sotilganda ochiq smenadagi xodim ish haqiga qo'shiladi.</p>
+        ${kpiRowsHTML()}
+      `)}
+
       <!-- ===== TIZIM JILDLARI ===== -->
       <div class="adm-group-label">Tizim</div>
 
@@ -180,6 +185,39 @@ const Admin = (() => {
           Zaxirani muntazam yuklab oling — ma'lumot faqat shu qurilmada saqlanadi.</p>
       `)}
     `;
+  }
+
+  /* Xodim KPI qatorlari (kategoriya × tur/qiymat) */
+  function kpiRowsHTML() {
+    const cats = Storage.categoriesList();
+    const cfg = Storage.getKpiConfig();
+    if (!cats.length) return '<p class="empty">Avval Omborga tovar/kategoriya qo\'shing</p>';
+    return cats.map(c => {
+      const r = cfg[c] || { tur: 'foiz', qiymat: 0 };
+      return `
+        <div class="kpi-row" data-kat="${esc(c)}">
+          <span class="kpi-name">${esc(c)}</span>
+          <select class="input kpi-tur">
+            <option value="foiz" ${r.tur === 'foiz' ? 'selected' : ''}>%</option>
+            <option value="summa" ${r.tur === 'summa' ? 'selected' : ''}>so'm</option>
+          </select>
+          <input class="input kpi-val" type="number" inputmode="numeric" min="0" value="${r.qiymat || 0}">
+        </div>`;
+    }).join('') + '<button class="btn btn-primary" style="margin-top:8px" onclick="Admin.saveKpi()">💾 KPI saqlash</button>';
+  }
+
+  function saveKpi() {
+    const map = {};
+    document.querySelectorAll('#view-admin .kpi-row').forEach(row => {
+      const kat = row.dataset.kat;
+      const tur = row.querySelector('.kpi-tur').value;
+      const qiymat = Math.max(0, Number(row.querySelector('.kpi-val').value) || 0);
+      if (qiymat > 0) map[kat] = { tur, qiymat };
+    });
+    Storage.setKpiConfig(map);
+    render();
+    Sheets.scheduleSync();
+    Toast.show('KPI saqlandi ✓', 'success');
   }
 
   /* Yig'iladigan "jild" (collapsible) HTML'ini quradi.
@@ -368,6 +406,6 @@ const Admin = (() => {
   return {
     render, unlock, lock, saveBusiness, changePassword, saveTaxLoyalty,
     saveSheets, testConn, syncNow, exportData, importData, clearData,
-    changeBranch, branchForm, branchRemove,
+    changeBranch, branchForm, branchRemove, saveKpi,
   };
 })();
