@@ -48,10 +48,14 @@ const Xodimlar = (() => {
             <div class="row-between"><span class="muted">Jami summa:</span><b style="color:var(--primary)">${money(shift.jami_sotuv || 0)}</b></div>
             <div class="row-between"><span class="muted">💰 Ish haqi (KPI):</span><b style="color:var(--success)">${money(shift.ishHaqi || 0)}</b></div>
             <div style="border-top:1px solid var(--hairline);margin:10px 0"></div>
+            <div class="row-between"><span class="muted">💵 Naqd sotuv:</span><b>${money(shift.naqdSotuv || 0)}</b></div>
+            <div class="row-between"><span class="muted">💳 Karta:</span><b>${money(shift.kartaSotuv || 0)}</b></div>
+            <div class="row-between"><span class="muted">📲 O'tkazma:</span><b>${money(shift.otkazmaSotuv || 0)}</b></div>
+            <div class="row-between"><span class="muted">📝 Qarz:</span><b>${money(shift.qarzSotuv || 0)}</b></div>
+            <div style="border-top:1px solid var(--hairline);margin:10px 0"></div>
             <div class="row-between"><span class="muted">Boshlang'ich pul:</span><b>${money(shift.boshlangichPul || 0)}</b></div>
-            <div class="row-between"><span class="muted">Naqd sotuv:</span><b>${money(shift.naqdSotuv || 0)}</b></div>
             <div class="row-between"><span class="muted">Kassa kirim/chiqim:</span><b>+${money(shift.naqdKirim || 0)} / −${money(shift.naqdChiqim || 0)}</b></div>
-            <div class="row-between"><span class="muted">Kassada bo'lishi kerak:</span><b style="color:var(--primary)">${money(kutilganNaqd)}</b></div>
+            <div class="row-between"><span class="muted">💰 Kassada bo'lishi kerak (naqd):</span><b style="color:var(--primary)">${money(kutilganNaqd)}</b></div>
             <div class="btn-row" style="margin-top:12px">
               <button class="btn btn-ghost" style="width:auto" onclick="Xodimlar.cashMove('kirim')">➕ Kassaga pul</button>
               <button class="btn btn-ghost" style="width:auto" onclick="Xodimlar.cashMove('chiqim')">➖ Kassadan pul</button>
@@ -97,9 +101,11 @@ const Xodimlar = (() => {
         filial: branch ? branch.nom : '', filialId: branch ? branch.id : '',
         sana: now.toLocaleDateString('uz-UZ'),
         boshlandi: now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+        shiftId: Storage.uid(),
         jami_sotuv: 0, sotuvSoni: 0, startTs: now.getTime(),
         boshlangichPul: Math.max(0, Number(document.getElementById('sh-cash').value) || 0),
-        naqdSotuv: 0, naqdKirim: 0, naqdChiqim: 0,
+        naqdSotuv: 0, kartaSotuv: 0, otkazmaSotuv: 0, qarzSotuv: 0,
+        naqdKirim: 0, naqdChiqim: 0,
         ishHaqi: 0,
       });
       Modal.close();
@@ -144,8 +150,14 @@ const Xodimlar = (() => {
       <div class="cart" style="margin-bottom:12px"><div style="padding:12px 14px">
         <div class="row-between"><span class="muted">Jami sotuv:</span><b>${money(shift.jami_sotuv || 0)}</b></div>
         <div class="row-between"><span class="muted">Sotuvlar soni:</span><b>${shift.sotuvSoni || 0}</b></div>
+        <div style="border-top:1px solid var(--hairline);margin:8px 0"></div>
+        <div class="row-between"><span class="muted">💵 Naqd:</span><b>${money(shift.naqdSotuv || 0)}</b></div>
+        <div class="row-between"><span class="muted">💳 Karta:</span><b>${money(shift.kartaSotuv || 0)}</b></div>
+        <div class="row-between"><span class="muted">📲 O'tkazma:</span><b>${money(shift.otkazmaSotuv || 0)}</b></div>
+        <div class="row-between"><span class="muted">📝 Qarz:</span><b>${money(shift.qarzSotuv || 0)}</b></div>
+        <div style="border-top:1px solid var(--hairline);margin:8px 0"></div>
         <div class="row-between"><span class="muted">Ish haqi (KPI):</span><b style="color:var(--success)">${money(shift.ishHaqi || 0)}</b></div>
-        <div class="row-between"><span class="muted">Kassada bo'lishi kerak (naqd):</span><b style="color:var(--primary)">${money(kutilgan)}</b></div>
+        <div class="row-between"><span class="muted">💰 Kassada bo'lishi kerak (naqd):</span><b style="color:var(--primary)">${money(kutilgan)}</b></div>
       </div></div>
       <div class="field"><label>Kassadagi haqiqiy naqd pul (sanang)</label>
         <input class="input" id="cs-real" type="number" inputmode="numeric" min="0" value="${kutilgan}"></div>
@@ -167,6 +179,7 @@ const Xodimlar = (() => {
       const now = new Date();
       const haqiqiy = Number(realInput.value) || 0;
       const record = {
+        shiftId: shift.shiftId || '',
         sana: shift.sana,
         xodim: shift.xodim,
         filial: shift.filial || '', filialId: shift.filialId || '',
@@ -176,6 +189,9 @@ const Xodimlar = (() => {
         sotuvSoni: shift.sotuvSoni || 0,
         boshlangichPul: shift.boshlangichPul || 0,
         naqdSotuv: shift.naqdSotuv || 0,
+        kartaSotuv: shift.kartaSotuv || 0,
+        otkazmaSotuv: shift.otkazmaSotuv || 0,
+        qarzSotuv: shift.qarzSotuv || 0,
         naqdKirim: shift.naqdKirim || 0,
         naqdChiqim: shift.naqdChiqim || 0,
         ishHaqi: shift.ishHaqi || 0,

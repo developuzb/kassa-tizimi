@@ -29,6 +29,9 @@ window.FBSync = (() => {
     [Storage.K.shifts]:      { node: 'shifts',      type: 'col' },
     [Storage.K.activeShift]: { node: 'activeShift', type: 'one' },
     [Storage.K.counter]:     { node: 'counter',     type: 'one' },
+    // 'settings' — biznes sozlamalari (KPI/QQS/sadoqat/...). Maxsus tur:
+    // qurilmaga xos kalitlar (filial, parol, Sheets) sinxronlanmaydi.
+    [Storage.K.settings]:    { node: 'settings',    type: 'settings' },
   };
 
   let db = null;
@@ -59,6 +62,8 @@ window.FBSync = (() => {
     const inf = NODES[key];
     if (!inf || !ready) return;
     if (inf.type === 'col') pushCollection(inf.node, value);
+    // Sozlamalarda faqat biznes (sinxronlanadigan) qismini yuboramiz
+    else if (inf.type === 'settings') pushSingle(inf.node, Storage.getSyncableSettings());
     else pushSingle(inf.node, value);
   }
 
@@ -116,6 +121,14 @@ window.FBSync = (() => {
     scheduleRefresh();
   }
 
+  // Sozlamalar: bulutdan kelgan biznes sozlamalarini lokalga MERGE qilamiz
+  // (qurilmaga xos kalitlar — filial/parol/Sheets — saqlanib qoladi).
+  function applySettings(node, val) {
+    cache[node] = stable(val === undefined ? null : val);
+    Storage.applyCloudSettings(val || {});
+    scheduleRefresh();
+  }
+
   /* ---------------- Ishga tushirish ---------------- */
   async function start() {
     if (started) return;
@@ -164,6 +177,21 @@ window.FBSync = (() => {
           rt.onValue(rt.ref(db, inf.node),
             (snap) => applyCol(inf.node, key, snap.val()),
             (err) => console.warn('onValue ' + inf.node, err));
+        } else if (inf.type === 'settings') {
+          // Biznes sozlamalari — qurilmaga xos kalitlarsiz sinxron
+          const syncable = Storage.getSyncableSettings();
+          if (!snap0.exists()) {
+            // Bulutda yo'q — shu qurilmaning biznes sozlamalari bilan urug'lantiramiz
+            await rt.set(rt.ref(db, inf.node), syncable).catch(e => console.warn('seed settings', e));
+            cache[inf.node] = stable(syncable);
+          } else {
+            // Bulutda bor — shu qurilmaga qo'llaymiz (KPI/QQS/sadoqat/...)
+            Storage.applyCloudSettings(snap0.val());
+            cache[inf.node] = stable(snap0.val());
+          }
+          rt.onValue(rt.ref(db, inf.node),
+            (snap) => applySettings(inf.node, snap.val()),
+            (err) => console.warn('onValue settings', err));
         } else {
           // 'one' — bitta qiymat
           const local = JSON.parse(localStorage.getItem(key) || 'null');

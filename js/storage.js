@@ -205,31 +205,65 @@ const Storage = (() => {
     list.push(s);
     write(K.shifts, list);
   }
-  // Chek qaytarilganda ochiq smenaning hisobini to'g'rilaydi.
-  // finishSale() smenaga qo'shgan hissani (kassa.js: jami_sotuv/sotuvSoni/
-  // naqdSotuv/ishHaqi) shu yerda teskari qaytaramiz. Ikki holat bor:
-  //  1) Sotuv AYNI shu ochiq smenada qilingan (sale.ts >= shift.startTs):
-  //     smenaning barcha ko'rsatkichlaridan hissasini ayiramiz — go'yo
-  //     sotuv bo'lmagandek. Naqd bo'lsa naqdSotuv ham kamayadi (kassadan pul
-  //     chiqqani — kutilgan naqd to'g'ri hisoblanadi).
-  //  2) Sotuv OLDINGI (yopilgan) smenada bo'lgan, lekin pul HOZIRGI kassadan
-  //     qaytariladi: sotuv ko'rsatkichlariga tegmaymiz (ular o'sha smenaga tegishli),
-  //     faqat naqd bo'lsa naqdChiqim sifatida yozamiz (kassadan real chiqim).
+  // To'lov usuli "chelagi"ni smenadan ayiradi (refund yordamchisi)
+  function reverseBucket(shift, usul, jami) {
+    if      (usul === 'naqd')    shift.naqdSotuv    = Math.max(0, (shift.naqdSotuv || 0)    - jami);
+    else if (usul === 'karta')   shift.kartaSotuv   = Math.max(0, (shift.kartaSotuv || 0)   - jami);
+    else if (usul === 'otkazma') shift.otkazmaSotuv = Math.max(0, (shift.otkazmaSotuv || 0) - jami);
+    else if (usul === 'qarz')    shift.qarzSotuv    = Math.max(0, (shift.qarzSotuv || 0)    - jami);
+  }
+
+  // Chek qaytarilganda smena hisobini (jami_sotuv/sotuvSoni/<usul>/ishHaqi=KPI)
+  // to'g'rilaydi. Har sotuvga shiftId yozilgani uchun u qaysi smenaga (ochiq yoki
+  // yopilgan) tegishli ekanini ANIQ bilamiz va aynan o'shanga qo'llaymiz:
+  //  1) Ochiq smenaga tegishli — hissasini to'liq teskari qaytaramiz; KPI ham
+  //     bekor bo'ladi, naqd bo'lsa kutilgan naqd ham kamayadi.
+  //  2) Yopilgan smenaga tegishli — o'sha smena YOZUVINI tuzatamiz, shunda
+  //     xodim KPI/ish haqi tarixda ham to'g'ri qoladi (qaytarmaSumma — qaytma jami).
+  //  3) shiftId yo'q eski sotuv: ochiq smenada vaqt bo'yicha aniqlaymiz, aks holda
+  //     naqd bo'lsa ochiq kassadan chiqim (naqdChiqim) sifatida yozamiz.
   function reverseShiftForRefund(sale) {
-    const shift = getActiveShift();
-    if (!shift || !sale) return;
+    if (!sale) return;
     const jami = Number(sale.jami) || 0;
-    const naqd = sale.tolov_usuli === 'naqd';
-    const shuSmenada = sale.ts != null && shift.startTs != null && sale.ts >= shift.startTs;
-    if (shuSmenada) {
-      shift.jami_sotuv = Math.max(0, (shift.jami_sotuv || 0) - jami);
-      shift.sotuvSoni  = Math.max(0, (shift.sotuvSoni || 0) - 1);
-      if (naqd) shift.naqdSotuv = Math.max(0, (shift.naqdSotuv || 0) - jami);
-      shift.ishHaqi = Math.max(0, (shift.ishHaqi || 0) - (Number(sale.xodimKpi) || 0));
-    } else if (naqd) {
-      shift.naqdChiqim = (shift.naqdChiqim || 0) + jami;
+    const usul = sale.tolov_usuli;
+    const kpi  = Number(sale.xodimKpi) || 0;
+    const active = getActiveShift();
+
+    const ochiqSmenaga = active && (
+      (sale.shiftId && active.shiftId && sale.shiftId === active.shiftId) ||
+      (!sale.shiftId && sale.ts != null && active.startTs != null && sale.ts >= active.startTs)
+    );
+
+    if (ochiqSmenaga) {
+      active.jami_sotuv = Math.max(0, (active.jami_sotuv || 0) - jami);
+      active.sotuvSoni  = Math.max(0, (active.sotuvSoni || 0) - 1);
+      reverseBucket(active, usul, jami);
+      active.ishHaqi = Math.max(0, (active.ishHaqi || 0) - kpi);
+      setActiveShift(active);
+      return;
     }
-    setActiveShift(shift);
+
+    // Yopilgan smenaga tegishli bo'lsa — shiftId orqali o'sha yozuvni topib tuzatamiz
+    if (sale.shiftId) {
+      const shifts = getShifts();
+      const i = shifts.findIndex(s => s.shiftId === sale.shiftId);
+      if (i !== -1) {
+        const sh = shifts[i];
+        sh.jami_sotuv = Math.max(0, (sh.jami_sotuv || 0) - jami);
+        sh.sotuvSoni  = Math.max(0, (sh.sotuvSoni || 0) - 1);
+        reverseBucket(sh, usul, jami);
+        sh.ishHaqi = Math.max(0, (sh.ishHaqi || 0) - kpi);
+        sh.qaytarmaSumma = (sh.qaytarmaSumma || 0) + jami;
+        write(K.shifts, shifts);
+        return;
+      }
+    }
+
+    // Eski sotuv yoki smena topilmadi: naqd bo'lsa ochiq kassadan chiqim
+    if (active && usul === 'naqd') {
+      active.naqdChiqim = (active.naqdChiqim || 0) + jami;
+      setActiveShift(active);
+    }
   }
 
   /* ============ SOZLAMALAR ============ */
@@ -258,6 +292,34 @@ const Storage = (() => {
   };
   function getSettings()      { return { ...DEFAULT_SETTINGS, ...read(K.settings, {}) }; }
   function setSettings(patch) { write(K.settings, { ...getSettings(), ...patch }); }
+
+  // Qurilmaga XOS sozlamalar — qurilmalararo SINXRONLANMAYDI:
+  //  • activeBranchId — har qurilma (kassa) o'z filialida ishlaydi.
+  //  • adminAuth/adminPassword — xavfsizlik (parol hashi bulutga chiqmasin).
+  //  • apiKey/sheetId/appsScriptUrl — Google Sheets ulanishi (har qurilmada alohida).
+  // Qolgan barcha sozlamalar (KPI, QQS, sadoqat, biznes nomi, valyuta, kamQoldiq,
+  // autoSync) — BIZNES darajasidagi sozlamalar: barcha qurilmalarda bir xil bo'lishi
+  // kerak, shuning uchun sinxronlanadi.
+  const SETTINGS_LOCAL_ONLY = [
+    'activeBranchId', 'adminAuth', 'adminPassword', 'apiKey', 'sheetId', 'appsScriptUrl',
+  ];
+  // Bulutga yuboriladigan (biznes) sozlamalar — qurilmaga xos kalitlarsiz.
+  function getSyncableSettings() {
+    const s = getSettings();
+    const out = {};
+    Object.keys(s).forEach(k => { if (!SETTINGS_LOCAL_ONLY.includes(k)) out[k] = s[k]; });
+    return out;
+  }
+  // Bulutdan kelgan biznes sozlamalarini lokalga qo'llaydi, qurilmaga xos
+  // kalitlarni saqlab qoladi va qayta Firebase'ga push QILMAYDI (loop oldini olish).
+  function applyCloudSettings(incoming) {
+    if (!incoming || typeof incoming !== 'object') return;
+    const biz = {};
+    Object.keys(incoming).forEach(k => { if (!SETTINGS_LOCAL_ONLY.includes(k)) biz[k] = incoming[k]; });
+    _applyingCloud = true;
+    try { write(K.settings, { ...getSettings(), ...biz }); }
+    finally { _applyingCloud = false; }
+  }
 
   /* ============ SINXRONLASH NAVBATI (offline queue) ============ */
   // Internet yo'q paytda Sheets'ga yuborilmagan yozuvlar shu yerda saqlanadi
@@ -391,7 +453,7 @@ const Storage = (() => {
     getActiveShift, setActiveShift, clearActiveShift, getShifts, addShift,
     reverseShiftForRefund,
     // sozlamalar
-    getSettings, setSettings,
+    getSettings, setSettings, getSyncableSettings, applyCloudSettings,
     // navbat
     getQueue, setQueue, enqueue, dequeue,
     // ombor qoldig'i

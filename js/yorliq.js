@@ -6,6 +6,10 @@
      • orta   — mahsulot yorlig'i: brend sarlavhali, muvozanatli
      • keng   — savdo afishasi: diqqatni tortib savdoni oshiruvchi
                 yirik chegirma/aksiya posteri
+   Ikki rejim:
+     • Bitta mahsulot — bitta tovar, belgilangan miqdorda
+     • Kategoriya bo'yicha — kategoriyani tanlab, undagi tovarlarni
+       belgilab (har biriga nechtadan) bir vaqtda chop etish
    Xususiyatlar:
      • Ko'p xalqaro format: CODE128, EAN-13/8, UPC-A, CODE39, ITF-14, Codabar
      • Chegirma rejimi -> rangli "sale" yorlig'i (eski/yangi narx, tejam)
@@ -174,31 +178,37 @@ const Yorliq = (() => {
 
   const TEMPLATES = { rasta: tplRasta, orta: tplOrta, keng: tplKeng };
 
-  // Joriy form holatidan yorliq ma'lumotini quradi (namuna ham, chop etish ham)
-  function buildData(genBarcode) {
-    const id = document.getElementById('y-prod').value;
-    const s = Storage.getServices().find(x => x.id === id);
-    if (!s) return null;
-    const sizeKey = document.getElementById('y-size').value;
-    const Z = SIZES[sizeKey] || SIZES.orta;
-    const format = document.getElementById('y-fmt').value;
-    const showPrice = document.getElementById('y-price').checked;
-    const isDisc = document.getElementById('y-disc').checked;
+  /* ---------- Form holatini va yorliq ma'lumotini quruvchilar ---------- */
 
+  // Form'dan umumiy sozlamalarni o'qiydi (ikkala rejimga ham tegishli)
+  function readOpts() {
+    const sizeKey = document.getElementById('y-size').value;
+    return {
+      sizeKey,
+      Z: SIZES[sizeKey] || SIZES.orta,
+      format: document.getElementById('y-fmt').value,
+      showPrice: document.getElementById('y-price').checked,
+      isDisc: document.getElementById('y-disc').checked,
+      discVal: Number(document.getElementById('y-disc-val')?.value) || 0,
+      discType: document.getElementById('y-disc-type')?.value || 'foiz',
+    };
+  }
+
+  // Bitta mahsulot + sozlamalardan yorliq ma'lumotini quradi
+  function buildDataFor(s, opts, genBarcode) {
+    if (!s) return null;
+    const Z = opts.Z;
     const eski = s.narx;
     let yangi = eski, badge = '';
-    if (isDisc) {
-      const dv = Number(document.getElementById('y-disc-val').value) || 0;
-      const dtype = document.getElementById('y-disc-type').value;
-      if (dtype === 'foiz') { yangi = Math.round(eski * (1 - dv / 100)); badge = `−${dv}%`; }
-      else { yangi = Math.max(0, eski - dv); badge = `−${money(dv)}`; }
+    if (opts.isDisc) {
+      if (opts.discType === 'foiz') { yangi = Math.round(eski * (1 - opts.discVal / 100)); badge = `−${opts.discVal}%`; }
+      else { yangi = Math.max(0, eski - opts.discVal); badge = `−${money(opts.discVal)}`; }
     }
-
-    const value = ensureValue(s, format);
-    const svg = genBarcode ? barcodeSVG(value, format, Z.bcH) : '';
-
+    const value = ensureValue(s, opts.format);
+    const svg = genBarcode ? barcodeSVG(value, opts.format, Z.bcH) : '';
     return {
-      s, sizeKey, Z, format, value, showPrice, isDisc,
+      s, sizeKey: opts.sizeKey, Z, format: opts.format, value,
+      showPrice: opts.showPrice, isDisc: opts.isDisc,
       shop: shopName(), nom: s.nom,
       narxStr: money(s.narx), eskiStr: money(eski), yangiStr: money(yangi),
       savingStr: money(Math.max(0, eski - yangi)), badge,
@@ -206,15 +216,99 @@ const Yorliq = (() => {
     };
   }
 
+  // "Bitta mahsulot" rejimi uchun tanlangan tovardan ma'lumot
+  function buildData(genBarcode) {
+    const id = document.getElementById('y-prod').value;
+    const s = Storage.getServices().find(x => x.id === id);
+    return buildDataFor(s, readOpts(), genBarcode);
+  }
+
   function renderOne(d) { return (TEMPLATES[d.sizeKey] || tplOrta)(d); }
 
-  /* ---------- Jonli namuna ---------- */
+  /* ---------- Rejim va kategoriya yordamchilari ---------- */
+  function currentMode() {
+    return document.querySelector('#y-mode .seg-btn.active')?.dataset.mode || 'one';
+  }
+  function catProducts() {
+    const cat = document.getElementById('y-cat')?.value || '';
+    if (!cat) return [];
+    return Storage.getServices().filter(s => s.aktiv !== false && s.kategoriya === cat);
+  }
+  // Tanlangan (belgilangan) mahsulotlar va ularning miqdorlari: [{ s, qty }]
+  function collectCatSelection() {
+    const out = [];
+    document.querySelectorAll('#y-cat-list .yc-chk').forEach(chk => {
+      if (!chk.checked) return;
+      const id = chk.dataset.id;
+      const s = Storage.getServices().find(x => x.id === id);
+      if (!s) return;
+      const qtyEl = document.querySelector(`#y-cat-list .yc-qty[data-id="${id}"]`);
+      const qty = Math.max(0, Math.min(500, Number(qtyEl?.value) || 0));
+      out.push({ s, qty });
+    });
+    return out;
+  }
+
+  /* ---------- Jonli namuna (rejimga moslashgan) ---------- */
   function renderPreview() {
     const box = document.getElementById('y-preview');
     if (!box) return;
-    const d = buildData(true);
-    if (!d) { box.innerHTML = ''; return; }
+    let d;
+    if (currentMode() === 'cat') {
+      const sel = collectCatSelection().filter(x => x.qty > 0);
+      const s = (sel[0] && sel[0].s) || catProducts()[0];
+      d = s ? buildDataFor(s, readOpts(), true) : null;
+    } else {
+      d = buildData(true);
+    }
+    if (!d) { box.innerHTML = '<p class="empty" style="margin:0">Mahsulot tanlang</p>'; return; }
     box.innerHTML = `<div style="width:${d.Z.pw};max-width:100%;margin:0 auto">${renderOne(d)}</div>`;
+  }
+
+  /* ---------- Kategoriya ro'yxati (belgilash + miqdor) ---------- */
+  function renderCatList() {
+    const box = document.getElementById('y-cat-list');
+    if (!box) return;
+    const prods = catProducts();
+    if (!prods.length) {
+      box.innerHTML = '<p class="empty" style="margin:6px 0">Kategoriyani tanlang yoki bu kategoriyada mahsulot yo\'q</p>';
+      return;
+    }
+    box.innerHTML = `
+      <div class="yc-head">
+        <label class="yc-all-lbl"><input type="checkbox" id="yc-all" checked> Hammasini belgilash (${prods.length})</label>
+        <span class="yc-bulk-wrap">Har biriga:
+          <input class="input" id="yc-bulk" type="number" inputmode="numeric" min="1" value="1">
+          <button type="button" class="btn btn-ghost" id="yc-apply">Qo'llash</button>
+        </span>
+      </div>
+      <div class="yc-rows">
+        ${prods.map(s => `
+          <div class="yc-row">
+            <label class="yc-pick">
+              <input type="checkbox" class="yc-chk" data-id="${s.id}" checked>
+              <span class="yc-nom">${esc(s.nom)}</span>
+              <span class="yc-narx">${money(s.narx)}</span>
+            </label>
+            <input class="input yc-qty" data-id="${s.id}" type="number" inputmode="numeric" min="0" value="1" aria-label="miqdor">
+          </div>`).join('')}
+      </div>`;
+    wireCatList();
+  }
+
+  function wireCatList() {
+    const all = document.getElementById('yc-all');
+    if (all) all.onchange = () => {
+      document.querySelectorAll('#y-cat-list .yc-chk').forEach(c => { c.checked = all.checked; });
+      renderPreview();
+    };
+    const apply = document.getElementById('yc-apply');
+    if (apply) apply.onclick = () => {
+      const v = Math.max(0, Number(document.getElementById('yc-bulk').value) || 0);
+      document.querySelectorAll('#y-cat-list .yc-qty').forEach(q => { q.value = v; });
+    };
+    document.querySelectorAll('#y-cat-list .yc-chk').forEach(c => { c.onchange = renderPreview; });
+    document.querySelectorAll('#y-cat-list .yc-qty').forEach(q => { q.oninput = renderPreview; });
   }
 
   /* ---------- Yorliq quruvchi oyna ---------- */
@@ -222,14 +316,33 @@ const Yorliq = (() => {
     const services = Storage.getServices().filter(s => s.aktiv !== false);
     if (!services.length) { Toast.show('Avval mahsulot qo\'shing', 'error'); return; }
     const sel = prefillId || services[0].id;
+    const cats = Storage.categoriesList();
 
     Modal.open(`
       <h3>${ICONS.tag} Yorliq / narx etiketkasi</h3>
 
-      <div class="field"><label>Mahsulot</label>
-        <select class="input" id="y-prod">
-          ${services.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.nom)} — ${money(s.narx)}</option>`).join('')}
-        </select></div>
+      <div class="seg" id="y-mode">
+        <button type="button" class="seg-btn active" data-mode="one">Bitta mahsulot</button>
+        <button type="button" class="seg-btn" data-mode="cat">Kategoriya bo'yicha</button>
+      </div>
+
+      <div id="y-one-box">
+        <div class="field"><label>Mahsulot</label>
+          <select class="input" id="y-prod">
+            ${services.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.nom)} — ${money(s.narx)}</option>`).join('')}
+          </select></div>
+      </div>
+
+      <div id="y-cat-box" style="display:none">
+        <div class="field"><label>Kategoriya</label>
+          <select class="input" id="y-cat">
+            <option value="">— Kategoriyani tanlang —</option>
+            ${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+          </select></div>
+        <div class="field"><label>Mahsulotlar (belgilang + nechtadan)</label>
+          <div id="y-cat-list" class="yc-list"></div>
+        </div>
+      </div>
 
       <div class="field"><label>Maqsad va o'lcham</label>
         <div class="size-picker" id="y-sizes">
@@ -247,7 +360,7 @@ const Yorliq = (() => {
       </div>
 
       <div class="toolbar" style="margin:0 0 12px">
-        <div class="field" style="flex:1;margin:0"><label>Miqdor (nechta)</label>
+        <div class="field" style="flex:1;margin:0" id="y-qty-wrap"><label>Miqdor (nechta)</label>
           <input class="input" id="y-qty" type="number" inputmode="numeric" min="1" value="1"></div>
         <div class="field" style="flex:1;margin:0"><label>Shtrix format</label>
           <select class="input" id="y-fmt">
@@ -285,6 +398,23 @@ const Yorliq = (() => {
       </div>
     `);
 
+    // Rejim almashtirgich (Bitta mahsulot / Kategoriya)
+    document.querySelectorAll('#y-mode .seg-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#y-mode .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        document.getElementById('y-one-box').style.display = mode === 'one' ? 'block' : 'none';
+        document.getElementById('y-cat-box').style.display = mode === 'cat' ? 'block' : 'none';
+        document.getElementById('y-qty-wrap').style.display = mode === 'one' ? 'block' : 'none';
+        renderPreview();
+      };
+    });
+
+    // Kategoriya tanlanganda — mahsulotlar ro'yxatini ochamiz
+    const catSel = document.getElementById('y-cat');
+    if (catSel) catSel.onchange = () => { renderCatList(); renderPreview(); };
+
     // Karta tanlash — o'lchamni hidden input'ga yozadi
     document.querySelectorAll('#y-sizes .size-card').forEach(btn => {
       btn.onclick = () => {
@@ -305,7 +435,7 @@ const Yorliq = (() => {
       renderPreview();
     };
     // Boshqa o'zgarishlarda namunani yangilaymiz
-    ['y-prod', 'y-fmt', 'y-disc-val', 'y-disc-type'].forEach(id => {
+    ['y-prod', 'y-fmt', 'y-qty', 'y-disc-val', 'y-disc-type'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.oninput = renderPreview; el.onchange = renderPreview; }
     });
@@ -315,29 +445,20 @@ const Yorliq = (() => {
   }
 
   /* ---------- Chop etish ---------- */
-  function doPrint() {
-    const d = buildData(true);
-    if (!d) return;
-    const qty = Math.max(1, Math.min(500, Number(document.getElementById('y-qty').value) || 1));
-
-    // Shtrix yo'q bo'lsa generatsiya qilib mahsulotga saqlaymiz
-    if (!d.s.shtrix) { Storage.updateService(d.s.id, { shtrix: d.value }); Sheets.scheduleSync(); }
-
-    const one = renderOne(d);
-    const labels = Array.from({ length: qty }, () => one).join('');
-
+  // Yorliqlar HTML'ini A4 varaqqa joylab, chop etish oynasini ochadi
+  function printSheet(cols, labelsHtml, title, count) {
     const html = `<!DOCTYPE html><html lang="uz"><head><meta charset="UTF-8">
-      <title>Yorliqlar — ${esc(d.nom)}</title>
+      <title>Yorliqlar — ${esc(title)}</title>
       <style>
         @page { size: A4; margin: 8mm; }
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: Arial, sans-serif; margin: 0; }
-        .sheet { display: grid; grid-template-columns: repeat(${d.Z.cols}, 1fr); gap: 3mm; }
+        .sheet { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 3mm; }
         .sheet > div { page-break-inside: avoid; }
         .sheet svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
       </style></head>
       <body>
-        <div class="sheet">${labels}</div>
+        <div class="sheet">${labelsHtml}</div>
         <script>window.onload=function(){window.focus();window.print();};<\/script>
       </body></html>`;
 
@@ -346,7 +467,43 @@ const Yorliq = (() => {
     w.document.write(html);
     w.document.close();
     Modal.close();
-    Toast.show(`${qty} ta yorliq tayyorlandi`, 'success');
+    Toast.show(`${count} ta yorliq tayyorlandi`, 'success');
+  }
+
+  function doPrint() {
+    if (currentMode() === 'cat') return doPrintCategory();
+
+    const d = buildData(true);
+    if (!d) { Toast.show('Mahsulot tanlang', 'error'); return; }
+    const qty = Math.max(1, Math.min(500, Number(document.getElementById('y-qty').value) || 1));
+
+    // Shtrix yo'q bo'lsa generatsiya qilib mahsulotga saqlaymiz
+    if (!d.s.shtrix) { Storage.updateService(d.s.id, { shtrix: d.value }); Sheets.scheduleSync(); }
+
+    const one = renderOne(d);
+    const labels = Array.from({ length: qty }, () => one).join('');
+    printSheet(d.Z.cols, labels, d.nom, qty);
+  }
+
+  // Kategoriya bo'yicha — belgilangan mahsulotlarni har biriga ko'rsatilgan
+  // miqdorda chop etadi (barchasi bir xil o'lcham/format/sozlamalar bilan)
+  function doPrintCategory() {
+    const opts = readOpts();
+    const sel = collectCatSelection().filter(x => x.qty > 0);
+    if (!sel.length) { Toast.show('Kamida bitta mahsulot va miqdorini belgilang', 'error'); return; }
+
+    let labels = '', total = 0, changed = false;
+    sel.forEach(({ s, qty }) => {
+      const d = buildDataFor(s, opts, true);
+      if (!s.shtrix) { Storage.updateService(s.id, { shtrix: d.value }); changed = true; }
+      const one = renderOne(d);
+      labels += Array.from({ length: qty }, () => one).join('');
+      total += qty;
+    });
+    if (changed) Sheets.scheduleSync();
+
+    const cat = document.getElementById('y-cat').value || 'Kategoriya';
+    printSheet(opts.Z.cols, labels, cat, total);
   }
 
   return { open };

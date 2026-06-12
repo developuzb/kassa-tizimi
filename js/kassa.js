@@ -83,6 +83,7 @@ const Kassa = (() => {
         <aside class="kassa-side"><div id="kassa-cart"></div></aside>
       </div>
       <div id="kassa-floatbar"></div>
+      <div id="kassa-tips"></div>
     `;
 
     const searchEl = document.getElementById('kassa-search');
@@ -94,6 +95,8 @@ const Kassa = (() => {
     renderTabs();
     renderGrid();
     renderCart();
+    // xodimga savdo/KPI tavsiyalari (pastda aylanib turadi)
+    if (typeof Tavsiyalar !== 'undefined') Tavsiyalar.mount();
   }
 
   function renderGrid() {
@@ -558,6 +561,7 @@ const Kassa = (() => {
       vaqt: now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
       xodim: shift.xodim,
       xodimId: shift.xodimId,
+      shiftId: shift.shiftId || '',
       filial: branch ? branch.nom : (shift.filial || ''),
       filialId: branch ? branch.id : (shift.filialId || ''),
       mijozId: customerId,
@@ -604,8 +608,12 @@ const Kassa = (() => {
     // 4) Ochiq smena summasini yangilaymiz
     shift.jami_sotuv = (shift.jami_sotuv || 0) + sale.jami;
     shift.sotuvSoni = (shift.sotuvSoni || 0) + 1;
-    // Naqd kassaga faqat naqd sotuv tushadi (qarz/karta/o'tkazma naqd emas)
-    if (pay === 'naqd') shift.naqdSotuv = (shift.naqdSotuv || 0) + sale.jami;
+    // To'lov usuli bo'yicha ajratamiz (smena yopilishida breakdown ko'rsatiladi).
+    // Naqd kassaga faqat naqd sotuv tushadi (karta/o'tkazma — bankka, qarz — keyin).
+    if      (pay === 'naqd')    shift.naqdSotuv    = (shift.naqdSotuv || 0)    + sale.jami;
+    else if (pay === 'karta')   shift.kartaSotuv   = (shift.kartaSotuv || 0)   + sale.jami;
+    else if (pay === 'otkazma') shift.otkazmaSotuv = (shift.otkazmaSotuv || 0) + sale.jami;
+    else if (pay === 'qarz')    shift.qarzSotuv    = (shift.qarzSotuv || 0)    + sale.jami;
     // Xodim ish haqi (KPI) smena davomida to'planib boradi
     shift.ishHaqi = (shift.ishHaqi || 0) + (sale.xodimKpi || 0);
     Storage.setActiveShift(shift);

@@ -157,12 +157,14 @@ const Sheets = (() => {
       .reverse() // oxirgi yopilgan smena tepada
       .map(sh => [
         sh.sana, sh.filial || '', sh.xodim, sh.sotuvSoni || 0, sh.jami_sotuv || 0,
-        sh.naqdSotuv || 0, sh.boshlandi || '', sh.tugadi || '',
+        sh.naqdSotuv || 0, sh.kartaSotuv || 0, sh.otkazmaSotuv || 0, sh.qarzSotuv || 0,
+        sh.boshlandi || '', sh.tugadi || '',
         sh.boshlangichPul || 0, sh.kutilganNaqd ?? '', sh.haqiqiyNaqd ?? '', sh.farq ?? '',
       ]);
     return {
       sheet: 'Smenalar',
       header: ['sana', 'filial', 'xodim', 'cheklar', 'jami_sotuv', 'naqd_sotuv',
+               'karta_sotuv', 'otkazma_sotuv', 'qarz_sotuv',
                'boshlandi', 'tugadi', 'boshlangich_pul', 'kutilgan_naqd', 'haqiqiy_naqd', 'farq'],
       rows,
     };
