@@ -24,8 +24,9 @@ const Kassa = (() => {
       : Math.min(discount.value || 0, subtotal);
     chegirma = Math.max(0, Math.min(chegirma, subtotal));
 
-    // 2) Sadoqat ballari bilan to'lov
-    const ballSumma = set.sadoqatYoq ? Math.round((pointsRedeem || 0) * set.ballNarxi) : 0;
+    // 2) Sadoqat ballari bilan to'lov — FAQAT mijoz tanlangan bo'lsa.
+    // (Aks holda mijozsiz holatda ball jamidan ayrilib, hech kimdan yechilmasdi.)
+    const ballSumma = (set.sadoqatYoq && customerId) ? Math.round((pointsRedeem || 0) * set.ballNarxi) : 0;
 
     // 3) Soliqdan oldingi baza
     let baza = Math.max(0, subtotal - chegirma - ballSumma);
@@ -569,7 +570,7 @@ const Kassa = (() => {
       })),
       oraliq: c.subtotal,
       chegirma: c.chegirma,
-      ballSarflandi: pointsRedeem,
+      ballSarflandi: customerId ? pointsRedeem : 0,
       ballOlindi: ballOlindi,
       soliq: c.soliq,
       jami: c.jami,
@@ -616,8 +617,8 @@ const Kassa = (() => {
     render();
     printReceipt(saleCopy, printed);
 
-    // 5) Kam qolgan tovar ogohlantirishi
-    const low = Storage.lowStock();
+    // 5) Kam qolgan tovar ogohlantirishi (ostona — sozlamadan)
+    const low = Storage.lowStock(set.kamQoldiq || 5);
     if (low.length) Toast.show(`⚠️ Kam qoldi: ${low.map(s => s.nom).join(', ')}`, 'error');
 
     // 6) Google Sheets'ga tartibli sinxron (fon rejimida, debounced)

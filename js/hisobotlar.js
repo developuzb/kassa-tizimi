@@ -600,6 +600,8 @@ const Hisobotlar = (() => {
     Modal.confirm(`Chek #${chekRaqami} (${money(sale.jami)}) qaytarilsinmi?\nTovar qoldig'i tiklanadi.`, async () => {
       Storage.updateSale(chekRaqami, { qaytarilgan: true, qaytarishTs: Date.now() });
       Storage.incrementStock(sale.items || []);
+      // Ochiq smena hisobini to'g'rilaymiz (naqd kassa + sotuv ko'rsatkichlari)
+      Storage.reverseShiftForRefund(sale);
       if (sale.mijozId) {
         const c = Storage.getCustomer(sale.mijozId);
         if (c) Storage.updateCustomer(sale.mijozId, {

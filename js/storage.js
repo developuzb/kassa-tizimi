@@ -171,7 +171,9 @@ const Storage = (() => {
     }
   }
   function getBranch(id) { return getBranches().find(b => b.id === id) || null; }
-  function getActiveBranch() { return getBranch(getSettings().activeBranchId); }
+  // Faol filial topilmasa (o'chirilgan yoki ko'p qurilmada id mos kelmasa) —
+  // birinchi mavjud filialga tushamiz, shunda sotuv hech qachon "filialsiz" qolmaydi.
+  function getActiveBranch() { return getBranch(getSettings().activeBranchId) || getBranches()[0] || null; }
   function setActiveBranch(id) { setSettings({ activeBranchId: id }); }
 
   /* ============ SINXRON BAYROG'I ============ */
@@ -202,6 +204,32 @@ const Storage = (() => {
     s.id = s.id || uid();
     list.push(s);
     write(K.shifts, list);
+  }
+  // Chek qaytarilganda ochiq smenaning hisobini to'g'rilaydi.
+  // finishSale() smenaga qo'shgan hissani (kassa.js: jami_sotuv/sotuvSoni/
+  // naqdSotuv/ishHaqi) shu yerda teskari qaytaramiz. Ikki holat bor:
+  //  1) Sotuv AYNI shu ochiq smenada qilingan (sale.ts >= shift.startTs):
+  //     smenaning barcha ko'rsatkichlaridan hissasini ayiramiz — go'yo
+  //     sotuv bo'lmagandek. Naqd bo'lsa naqdSotuv ham kamayadi (kassadan pul
+  //     chiqqani — kutilgan naqd to'g'ri hisoblanadi).
+  //  2) Sotuv OLDINGI (yopilgan) smenada bo'lgan, lekin pul HOZIRGI kassadan
+  //     qaytariladi: sotuv ko'rsatkichlariga tegmaymiz (ular o'sha smenaga tegishli),
+  //     faqat naqd bo'lsa naqdChiqim sifatida yozamiz (kassadan real chiqim).
+  function reverseShiftForRefund(sale) {
+    const shift = getActiveShift();
+    if (!shift || !sale) return;
+    const jami = Number(sale.jami) || 0;
+    const naqd = sale.tolov_usuli === 'naqd';
+    const shuSmenada = sale.ts != null && shift.startTs != null && sale.ts >= shift.startTs;
+    if (shuSmenada) {
+      shift.jami_sotuv = Math.max(0, (shift.jami_sotuv || 0) - jami);
+      shift.sotuvSoni  = Math.max(0, (shift.sotuvSoni || 0) - 1);
+      if (naqd) shift.naqdSotuv = Math.max(0, (shift.naqdSotuv || 0) - jami);
+      shift.ishHaqi = Math.max(0, (shift.ishHaqi || 0) - (Number(sale.xodimKpi) || 0));
+    } else if (naqd) {
+      shift.naqdChiqim = (shift.naqdChiqim || 0) + jami;
+    }
+    setActiveShift(shift);
   }
 
   /* ============ SOZLAMALAR ============ */
@@ -321,9 +349,10 @@ const Storage = (() => {
 
   /* ============ DEMO MA'LUMOTLAR (birinchi ishga tushirishda) ============ */
   function seedIfEmpty() {
-    // Standart filial
+    // Standart filial — barqaror id ('main'): ko'p qurilma birinchi marta
+    // oflayn ishga tushsa ham bir xil id beradi (Firebase'da takrorlanmaydi).
     if (getBranches().length === 0) {
-      addBranch({ nom: 'Asosiy do\'kon', manzil: '' });
+      addBranch({ id: 'main', nom: 'Asosiy do\'kon', manzil: '' });
     }
     // Demo mahsulotlar (tovar do'koni — qoldiq bilan)
     if (getServices().length === 0) {
@@ -360,6 +389,7 @@ const Storage = (() => {
     isDirty, markDirty, clearDirty,
     // smenalar
     getActiveShift, setActiveShift, clearActiveShift, getShifts, addShift,
+    reverseShiftForRefund,
     // sozlamalar
     getSettings, setSettings,
     // navbat

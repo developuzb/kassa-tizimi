@@ -10,6 +10,7 @@
 # ============================================================
 
 import json
+import os
 import sys
 import urllib.request
 
@@ -61,6 +62,14 @@ def main():
     items = build()
     data = json.dumps(items).encode("utf-8")
     url = f"{RTDB}/services.json"
+    # RTDB qoidalari "auth != null" bo'lsa, yozish uchun token kerak.
+    # Tokenni muhit o'zgaruvchisidan olamiz (kodga yozib qo'ymaymiz):
+    #   Windows:  $env:FIREBASE_DB_AUTH="<token>"; python seed_catalog.py
+    #   Linux:    FIREBASE_DB_AUTH=<token> python seed_catalog.py
+    # Token = Realtime Database secret yoki amal qiluvchi ID token bo'lishi mumkin.
+    auth = os.environ.get("FIREBASE_DB_AUTH", "").strip()
+    if auth:
+        url += f"?auth={auth}"
     req = urllib.request.Request(url, data=data, method="PUT",
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=20) as r:

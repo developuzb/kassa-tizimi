@@ -382,10 +382,10 @@ const Admin = (() => {
         Modal.confirm('Zaxiradan tiklash JORIY barcha ma\'lumotlarni almashtiradi.\nDavom etilsinmi?', () => {
           matched.forEach(k => { if (dump[k] != null) localStorage.setItem(k, dump[k]); });
           Storage.markDirty();
-          unlocked = false;
-          App.go('kassa');
-          App.refreshHeader();
-          Toast.show('Zaxiradan tiklandi ✓', 'success');
+          Toast.show('Zaxiradan tiklandi ✓ — qayta yuklanmoqda', 'success');
+          // Qayta yuklash: yangi ma'lumot bilan toza ishga tushadi (parol/PIN
+          // hash migratsiyasi qaytadan bajariladi — lockout bo'lmaydi).
+          setTimeout(() => location.reload(), 600);
         });
       };
       reader.readAsText(file);
@@ -394,12 +394,12 @@ const Admin = (() => {
   }
 
   function clearData() {
-    Modal.confirm('DIQQAT! Barcha sotuvlar, xizmatlar va xodimlar o\'chiriladi. Davom etilsinmi?', () => {
+    Modal.confirm('DIQQAT! Bu qurilmadagi barcha sotuvlar, mahsulotlar va xodimlar o\'chiriladi.\n(Firebase ulangan bo\'lsa — bulutdagi nusxa saqlanib qoladi.)\nDavom etilsinmi?', () => {
       Object.values(Storage.K).forEach(k => localStorage.removeItem(k));
-      Storage.seedIfEmpty();
-      unlocked = false;
-      App.go('kassa');
-      Toast.show('Ma\'lumotlar tozalandi', 'success');
+      Toast.show('Ma\'lumotlar tozalandi — qayta yuklanmoqda', 'success');
+      // Qayta yuklash: App.init seed + parol/PIN hash migratsiyasini qaytadan bajaradi,
+      // shunda admin paneliga kira olmay qolish (lockout) yuzaga kelmaydi.
+      setTimeout(() => location.reload(), 500);
     });
   }
 

@@ -128,6 +128,19 @@ window.FBSync = (() => {
       const dbMod  = await import(`${SDK}/firebase-database.js`);
       Object.assign(rt, dbMod);
       const app = appMod.initializeApp(cfg);
+
+      // Anonim autentifikatsiya: RTDB qoidalari "auth != null" talab qilganda
+      // kerak bo'ladi (database.rules.json ga qarang). Konsolda Anonymous
+      // provayderi yoqilmagan bo'lsa xato beradi — ogohlantiramiz, lekin
+      // ilovani to'xtatmaymiz (eski ochiq qoidalar bilan ham ishlayveradi).
+      try {
+        const authMod = await import(`${SDK}/firebase-auth.js`);
+        await authMod.signInAnonymously(authMod.getAuth(app));
+      } catch (authErr) {
+        console.warn('Anonim auth ishlamadi (Firebase Console > Authentication > '
+          + 'Sign-in method > Anonymous yoqilganini tekshiring):', authErr);
+      }
+
       db = dbMod.getDatabase(app);
 
       for (const [key, inf] of Object.entries(NODES)) {
